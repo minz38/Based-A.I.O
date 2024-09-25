@@ -5,6 +5,7 @@ from discord.ext import commands
 from logger import setup_logging
 from datetime import datetime
 
+
 # initialize logger
 logger = setup_logging(level="INFO", log_file="logs/bot_core.log")
 

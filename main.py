@@ -1,9 +1,10 @@
 # Main execution file to start the Bot
 import json
 import os
-from bot import bot
+# from bot import bot
 from colorama import Fore, init
 from logger import setup_logging
+
 
 # Initialize colorama for terminal colors
 init(autoreset=True)
@@ -57,9 +58,9 @@ def bot_config_check():
 
         try:
             with open("configs/bot_config.json", "r") as bot_config_file:
-                bot_config = json.load(bot_config_file)
+                bot_config_data = json.load(bot_config_file)
                 logger.info(f"Bot configuration loaded successfully.")
-                return bot_config
+                return bot_config_data
 
         except Exception as e:
             logger.error(f"Error loading bot configuration: {e}")
@@ -94,4 +95,9 @@ def extension_check(bot_config_file):
 if __name__ == "__main__":
     config = bot_config_check()  # load the bot configuration
     config = extension_check(config)  # check and add new extension and update the bot config.
-    bot.run(config["bot_token"])
+    from bot import bot
+    try:
+        bot.run(config["bot_token"])
+        logger.info(f"Bot started successfully.")
+    except Exception as e:
+        logger.error(f"Error when running the bot: {e}")
