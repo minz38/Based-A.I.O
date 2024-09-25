@@ -1,7 +1,6 @@
 # Main execution file to start the Bot
 import json
 import os
-import logging
 from bot import bot
 from colorama import Fore, init
 from logger import setup_logging
@@ -13,7 +12,7 @@ init(autoreset=True)
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-logger = setup_logging(name="Main", level=logging.WARNING)
+logger = setup_logging(name="Main", level="WARNING", log_file="logs/main.log")
 
 
 # function to create a bot config file
@@ -27,7 +26,8 @@ def create_bot_config():
     new_bot_config = {
         "bot_token": bot_token,
         "prefix": prefix,
-        "admin_user_id": admin_user_id
+        "admin_user_id": admin_user_id,
+        "active_extensions": {}
     }
 
     # Ask the user to confirm the bot configuration.
@@ -66,6 +66,32 @@ def bot_config_check():
             exit()
 
 
+def extension_check(bot_config_file):
+    # check if the extensions directory exists, if not create it.
+    if not os.path.exists("extensions"):
+        logger.warning("Extensions directory not found. Creating a new one...")
+        os.makedirs("extensions")
+        open("extensions/__init__.py", "a").close()
+
+    for filename in os.listdir("extensions"):
+        if filename.endswith(".py") and filename != "__init__.py":
+            extension_name = filename.split(".")[0]
+            if extension_name not in bot_config_file["active_extensions"]:
+                bot_config_file["active_extensions"][extension_name] = True
+
+    for extension_name in list(bot_config_file["active_extensions"].keys()):
+        if f"{extension_name}.py" not in os.listdir("extensions"):
+            del bot_config_file["active_extensions"][extension_name]
+
+    # Save the updated bot configuration.
+    with open("configs/bot_config.json", "w") as file:
+        json.dump(bot_config_file, file, indent=4)
+        logger.info(f"Bot configuration updated successfully.")
+
+    return bot_config_file  # return the updated bot configuration for the bot to use.
+
+
 if __name__ == "__main__":
-    config = bot_config_check()
+    config = bot_config_check()  # load the bot configuration
+    config = extension_check(config)  # check and add new extension and update the bot config.
     bot.run(config["bot_token"])
