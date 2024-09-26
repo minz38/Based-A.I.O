@@ -24,11 +24,11 @@ async def on_ready():
     logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
     for guild in bot.guilds:
         logger.info(f'Bot Logged in as: {bot.user.name} in {guild.name} (id: {guild.id})')
-
     await create_guild_config()
     await load_extensions()
-    await sync_active_guild_commands()
-
+    for guild_id in await get_guilds_to_sync_commands():
+        await bot.tree.sync(guild=discord.Object(id=guild_id))
+        logger.info(f"Synced bot.tree for guild: {guild_id}")
 
 # Create a Config file for each guild the bot is in
 async def create_guild_config():
@@ -74,7 +74,29 @@ async def load_extensions():
     logger.info("Finished loading extensions.")
 
 
-async def sync_active_guild_commands():
+# async def sync_active_guild_commands():
+#     for guild_file in os.listdir("configs/guilds"):
+#         if guild_file.endswith(".json"):
+#             guild_id = int(guild_file[:-5])  # Extract the guild ID from the filename (removing ".json")
+#
+#             # Load the guild config
+#             with open(f"configs/guilds/{guild_file}", "r") as file:
+#                 guild_config = json.load(file)
+#
+#             # Check if sync_commands is True for this guild
+#             if guild_config.get("sync_commands", False):
+#                 try:
+#                     # Sync the application commands for this guild
+#                     logger.info(f"Syncing commands for guild: {guild_id}")
+#                     await bot.tree.sync(guild=discord.Object(id=guild_id))
+#                     logger.info(f"Commands synced for guild: {guild_id}")
+#                 except Exception as e:
+#                     logger.error(f"Failed to sync commands for guild {guild_id}: {e}")
+
+
+# return a list of guilds to sync commands with
+async def get_guilds_to_sync_commands():
+    guilds_to_sync = []
     for guild_file in os.listdir("configs/guilds"):
         if guild_file.endswith(".json"):
             guild_id = int(guild_file[:-5])  # Extract the guild ID from the filename (removing ".json")
@@ -85,14 +107,9 @@ async def sync_active_guild_commands():
 
             # Check if sync_commands is True for this guild
             if guild_config.get("sync_commands", False):
-                try:
-                    # Sync the application commands for this guild
-                    logger.info(f"Syncing commands for guild: {guild_id}")
-                    await bot.tree.sync(guild=discord.Object(id=guild_id))
-                    logger.info(f"Commands synced for guild: {guild_id}")
-                except Exception as e:
-                    logger.error(f"Failed to sync commands for guild {guild_id}: {e}")
+                guilds_to_sync.append(guild_id)
 
+    return guilds_to_sync
 
 # If the bot joins a guild while running, it will call this function and creates a config file for it
 @bot.event
