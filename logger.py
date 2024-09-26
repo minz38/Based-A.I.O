@@ -1,5 +1,9 @@
 import logging
 import os
+from colorama import Fore, Back, Style, init
+
+# Initialize colorama for automatic reset after each print statement
+init(autoreset=True)
 
 
 class LoggerManager:
@@ -72,7 +76,7 @@ class LoggerManager:
             # Console handler to log to the console (stdout)
             console_handler = logging.StreamHandler()
             console_handler.setLevel(log_level)
-            console_formatter = logging.Formatter(
+            console_formatter = ColoredFormatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt=date_format
             )
             console_handler.setFormatter(console_formatter)
@@ -91,3 +95,22 @@ class LoggerManager:
         logger (logging.Logger): The logger instance.
         """
         return self.logger
+
+
+class ColoredFormatter(logging.Formatter):
+    """
+    Custom formatter to add colors to the log output in the console based on log levels.
+    """
+
+    def format(self, record):
+        # Define color codes for each log level
+        if record.levelno == logging.INFO:
+            record.msg = Fore.WHITE + record.msg + Style.RESET_ALL
+        elif record.levelno == logging.WARNING:
+            record.msg = Fore.YELLOW + record.msg + Style.RESET_ALL
+        elif record.levelno == logging.ERROR:
+            record.msg = Fore.RED + record.msg + Style.RESET_ALL
+        elif record.levelno == logging.CRITICAL:
+            record.msg = Fore.YELLOW + Back.RED + record.msg + Style.RESET_ALL
+
+        return super().format(record)

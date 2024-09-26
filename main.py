@@ -1,9 +1,8 @@
 # Main execution file to start the Bot
 import json
 import os
-# from bot import bot
 from colorama import Fore, init
-from logger import setup_logging
+from logger import LoggerManager
 
 
 # Initialize colorama for terminal colors
@@ -13,7 +12,8 @@ init(autoreset=True)
 if not os.path.exists("logs"):
     os.makedirs("logs")
 
-logger = setup_logging(name="Main", level="WARNING", log_file="logs/main.log")
+logger = LoggerManager(name="Main", level="INFO", log_file="logs/main.log").get_logger()
+# logger = setup_logging(name="Main", level="WARNING", log_file="logs/main.log")
 
 
 # function to create a bot config file
@@ -95,9 +95,11 @@ def extension_check(bot_config_file):
 if __name__ == "__main__":
     config = bot_config_check()  # load the bot configuration
     config = extension_check(config)  # check and add new extension and update the bot config.
+    bot_config = config  # Use this across other COG's to access the bot's configuration.
+    token = bot_config["bot_token"]
     from bot import bot
     try:
-        bot.run(config["bot_token"])
+        bot.run(token)
         logger.info(f"Bot started successfully.")
     except Exception as e:
         logger.error(f"Error when running the bot: {e}")
