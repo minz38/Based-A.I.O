@@ -22,13 +22,15 @@ bot = commands.Bot(command_prefix=bot_config["prefix"], intents=intents)
 @bot.event
 async def on_ready():
     logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
+    logger.info(f"Bot is connected to {len(bot.guilds)} guilds")
     for guild in bot.guilds:
-        logger.info(f'Bot Logged in as: {bot.user.name} in {guild.name} (id: {guild.id})')
+        logger.debug(f'Bot Logged in as: {bot.user.name} in {guild.name} (id: {guild.id})')
     await create_guild_config()
     await load_extensions()
     for guild_id in await get_guilds_to_sync_commands():
         await bot.tree.sync(guild=discord.Object(id=guild_id))
         logger.info(f"Synced bot.tree for guild: {guild_id}")
+
 
 # Create a Config file for each guild the bot is in
 async def create_guild_config():
@@ -110,6 +112,7 @@ async def get_guilds_to_sync_commands():
                 guilds_to_sync.append(guild_id)
 
     return guilds_to_sync
+
 
 # If the bot joins a guild while running, it will call this function and creates a config file for it
 @bot.event
