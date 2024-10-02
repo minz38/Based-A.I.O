@@ -1,0 +1,7 @@
+colorama~=0.4.6
+discord.py~=2.4.0
+pyotp~=2.9.0
+vrchatapi~=1.18.4
+cryptography~=43.0.1
+yt-dlp~=2024.9.27
+ffmpeg~=1.4

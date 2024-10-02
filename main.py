@@ -73,12 +73,19 @@ def extension_check(bot_config_file):
         logger.warning("Extensions directory not found. Creating a new one...")
         os.makedirs("extensions")
         open("extensions/__init__.py", "a").close()
+        logger.debug(f"Created extensions directory.")
 
     for filename in os.listdir("extensions"):
         if filename.endswith(".py") and filename != "__init__.py":
             extension_name = filename.split(".")[0]
             if extension_name not in bot_config_file["active_extensions"]:
                 bot_config_file["active_extensions"][extension_name] = True
+
+    if not os.path.exists("dependencies"):
+        logger.warning("Dependencies directory not found. Creating a new one...")
+        os.makedirs("dependencies")
+        open("dependencies/__init__.py", "a").close()
+        logger.debug(f"Created dependencies directory.")
 
     for extension_name in list(bot_config_file["active_extensions"].keys()):
         if f"{extension_name}.py" not in os.listdir("extensions"):

@@ -1,9 +1,12 @@
+import re
 import os
 import json
 import discord
+from discord import app_commands
 from discord.ext import commands
 from logger import LoggerManager
 from datetime import datetime
+from dependencies.youtube_handler import download_music, download_video, delete_temp_files
 
 
 # initialize logger
@@ -16,7 +19,9 @@ with open("configs/bot_config.json", "r") as file:
 
 # Load the bot Configuration
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=bot_config["prefix"], intents=intents)
+bot = commands.Bot(command_prefix=bot_config["prefix"],
+                   intents=intents,
+                   help_command=None)
 
 
 @bot.event
@@ -25,11 +30,14 @@ async def on_ready():
     logger.info(f"Bot is connected to {len(bot.guilds)} guilds")
     for guild in bot.guilds:
         logger.debug(f'Bot Logged in as: {bot.user.name} in {guild.name} (id: {guild.id})')
+
     await create_guild_config()
     await load_extensions()
-    for guild_id in await get_guilds_to_sync_commands():
-        await bot.tree.sync(guild=discord.Object(id=guild_id))
-        logger.info(f"Synced bot.tree for guild: {guild_id}")
+    try:
+        await bot.tree.sync()
+        logger.info("Synced bot.tree for all guilds.")
+    except Exception as e:
+        logger.error(f"Error syncing bot.tree: {e}")
 
 
 # Create a Config file for each guild the bot is in
@@ -76,42 +84,70 @@ async def load_extensions():
     logger.info("Finished loading extensions.")
 
 
-# async def sync_active_guild_commands():
-#     for guild_file in os.listdir("configs/guilds"):
-#         if guild_file.endswith(".json"):
-#             guild_id = int(guild_file[:-5])  # Extract the guild ID from the filename (removing ".json")
-#
-#             # Load the guild config
-#             with open(f"configs/guilds/{guild_file}", "r") as file:
-#                 guild_config = json.load(file)
-#
-#             # Check if sync_commands is True for this guild
-#             if guild_config.get("sync_commands", False):
-#                 try:
-#                     # Sync the application commands for this guild
-#                     logger.info(f"Syncing commands for guild: {guild_id}")
-#                     await bot.tree.sync(guild=discord.Object(id=guild_id))
-#                     logger.info(f"Commands synced for guild: {guild_id}")
-#                 except Exception as e:
-#                     logger.error(f"Failed to sync commands for guild {guild_id}: {e}")
+# Youtube downloader in Context Menu
+# Dependencies folder: ffmpeg.exe, ffprobe.exe, youtube_handler.py
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.context_menu(name="Youtube Music Download")
+async def music_download(interaction: discord.Interaction, message: discord.Message):
+    message_content = message.clean_content
+    youtube_regex = (r'(https?://(?:www\.)?(?:youtube|youtu|youtube-nocookie)\.'
+                     r'(?:com|be)/(?:watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11}))')
+
+    # Find all matches
+    matches = re.findall(youtube_regex, message_content)  # noqa
+
+    if matches:
+        found_links = [match[0] for match in matches]
+        await interaction.response.send_message("Found YouTube video links... downloading", ephemeral=True)
+
+        for link in found_links:
+            file_path = await download_music(link)
+
+            if file_path:
+                message_content = f"{interaction.user.mention}, your requested download was successful!"
+                file_to_send = discord.File(file_path)  # Wrap the file in discord.File
+                await interaction.followup.send(content=message_content, file=file_to_send)
+            else:
+                await interaction.followup.send(content=f"Failed to download video from {link}")
+
+        # cleanup the temp files folder
+        await delete_temp_files()
+
+    else:
+        await interaction.response.send_message("No YouTube video link found.")
 
 
-# return a list of guilds to sync commands with
-async def get_guilds_to_sync_commands():
-    guilds_to_sync = []
-    for guild_file in os.listdir("configs/guilds"):
-        if guild_file.endswith(".json"):
-            guild_id = int(guild_file[:-5])  # Extract the guild ID from the filename (removing ".json")
+@app_commands.allowed_installs(guilds=True, users=True)
+@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+@bot.tree.context_menu(name="Youtube Video Download")
+async def video_download(interaction: discord.Interaction, message: discord.Message):
+    message_content = message.clean_content
+    youtube_regex = (r'(https?://(?:www\.)?(?:youtube|youtu|youtube-nocookie)\.'
+                     r'(?:com|be)/(?:watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11}))')
 
-            # Load the guild config
-            with open(f"configs/guilds/{guild_file}", "r") as file:
-                guild_config = json.load(file)
+    # Find all matches
+    matches = re.findall(youtube_regex, message_content)  # noqa
 
-            # Check if sync_commands is True for this guild
-            if guild_config.get("sync_commands", False):
-                guilds_to_sync.append(guild_id)
+    if matches:
+        found_links = [match[0] for match in matches]
+        await interaction.response.send_message("Found YouTube video links... downloading", ephemeral=True)
 
-    return guilds_to_sync
+        for link in found_links:
+            file_path = await download_video(link)
+
+            if file_path:
+                message_content = f"{interaction.user.mention}, your requested download was successful!"
+                file_to_send = discord.File(file_path)  # Wrap the file in discord.File
+                await interaction.followup.send(content=message_content, file=file_to_send)
+            else:
+                await interaction.followup.send(content=f"Failed to download video from {link}")
+
+        # cleanup the temp files folder
+        await delete_temp_files()
+
+    else:
+        await interaction.response.send_message("No YouTube video link found.")
 
 
 # If the bot joins a guild while running, it will call this function and creates a config file for it
