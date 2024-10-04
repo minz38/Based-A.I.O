@@ -118,36 +118,36 @@ async def music_download(interaction: discord.Interaction, message: discord.Mess
         await interaction.response.send_message("No YouTube video link found.")
 
 
-@app_commands.allowed_installs(guilds=True, users=True)
-@app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@bot.tree.context_menu(name="Youtube Video Download")
-async def video_download(interaction: discord.Interaction, message: discord.Message):
-    message_content = message.clean_content
-    youtube_regex = (r'(https?://(?:www\.)?(?:youtube|youtu|youtube-nocookie)\.'
-                     r'(?:com|be)/(?:watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11}))')
-
-    # Find all matches
-    matches = re.findall(youtube_regex, message_content)  # noqa
-
-    if matches:
-        found_links = [match[0] for match in matches]
-        await interaction.response.send_message("Found YouTube video links... downloading", ephemeral=True)
-
-        for link in found_links:
-            file_path = await download_video(link)
-
-            if file_path:
-                message_content = f"{interaction.user.mention}, your requested download was successful!"
-                file_to_send = discord.File(file_path)  # Wrap the file in discord.File
-                await interaction.followup.send(content=message_content, file=file_to_send)
-            else:
-                await interaction.followup.send(content=f"Failed to download video from {link}")
-
-        # cleanup the temp files folder
-        await delete_temp_files()
-
-    else:
-        await interaction.response.send_message("No YouTube video link found.")
+# @app_commands.allowed_installs(guilds=True, users=True)
+# @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
+# @bot.tree.context_menu(name="Youtube Video Download")
+# async def video_download(interaction: discord.Interaction, message: discord.Message):
+#     message_content = message.clean_content
+#     youtube_regex = (r'(https?://(?:www\.)?(?:youtube|youtu|youtube-nocookie)\.'
+#                      r'(?:com|be)/(?:watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11}))')
+#
+#     # Find all matches
+#     matches = re.findall(youtube_regex, message_content)  # noqa
+#
+#     if matches:
+#         found_links = [match[0] for match in matches]
+#         await interaction.response.send_message("Found YouTube video links... downloading", ephemeral=True)
+#
+#         for link in found_links:
+#             file_path = await download_video(link)
+#
+#             if file_path:
+#                 message_content = f"{interaction.user.mention}, your requested download was successful!"
+#                 file_to_send = discord.File(file_path)  # Wrap the file in discord.File
+#                 await interaction.followup.send(content=message_content, file=file_to_send)
+#             else:
+#                 await interaction.followup.send(content=f"Failed to download video from {link}")
+#
+#         # cleanup the temp files folder
+#         await delete_temp_files()
+#
+#     else:
+#         await interaction.response.send_message("No YouTube video link found.")
 
 
 # If the bot joins a guild while running, it will call this function and creates a config file for it
