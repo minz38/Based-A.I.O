@@ -3,6 +3,7 @@ import yt_dlp
 import asyncio
 import shutil
 from logger import LoggerManager
+import re
 
 logger = LoggerManager(name="Music Downloader", level="info", log_file="logs/youtube_downloader.log").get_logger()
 path_to_ffmpeg = 'dependencies/ffmpeg.exe'
@@ -75,6 +76,11 @@ async def download_video(video_url):
     except Exception as e:
         logger.error(f"Error downloading video: {e}")
         return False
+
+
+def sanitize_filename(filename):
+    # Replace invalid characters with underscores or remove them
+    return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 
 async def delete_temp_files():
