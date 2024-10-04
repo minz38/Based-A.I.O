@@ -18,7 +18,7 @@ async def download_music(video_url):
     # Format: Mp3, Quality: best, convert to mp3 using ffmpeg
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': f'{music_output_path}/%(title)s.%(ext)s',
+        'outtmpl': f'{music_output_path}/song.%(ext)s',  # %(title)s.%(ext)s',
         'noplaylist': True,
         'quiet': True,
         'ffmpeg_location': path_to_ffmpeg,
@@ -34,7 +34,7 @@ async def download_music(video_url):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(video_url, download=True)
             file_title = info_dict.get('title', 'unknown_title')
-            file_path = f"{music_output_path}/{file_title}.mp3"
+            file_path = f"{music_output_path}/song.mp3"
             logger.info(f"Downloaded music to {file_path}")
             return file_path
 

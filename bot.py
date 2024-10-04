@@ -107,9 +107,9 @@ async def music_download(interaction: discord.Interaction, message: discord.Mess
             if file_path:
                 message_content = f"{interaction.user.mention}, your requested download was successful!"
                 file_to_send = discord.File(file_path)  # Wrap the file in discord.File
-                await interaction.followup.send(content=message_content, file=file_to_send)
+                await interaction.followup.send(content=message_content, file=file_to_send, ephemeral=True)
             else:
-                await interaction.followup.send(content=f"Failed to download video from {link}")
+                await interaction.followup.send(content=f"Failed to download video from {link}", ephemeral=True)
 
         # cleanup the temp files folder
         await delete_temp_files()
