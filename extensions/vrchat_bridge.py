@@ -5,7 +5,7 @@ import json
 import os
 from logger import LoggerManager
 import dependencies.encryption_handler as encryption_handler
-from extensions.vrcapi.vrc_api import VrchatApiHandler
+# from extensions.vrcapi.vrc_api import VrchatApiHandler
 
 # Initialize the logger
 logger = LoggerManager(name="VRC-API", level="INFO", log_file="logs/vrc-api.log").get_logger()
