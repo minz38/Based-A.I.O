@@ -115,7 +115,7 @@ async def music_download(interaction: discord.Interaction, message: discord.Mess
         await delete_temp_files()
 
     else:
-        await interaction.response.send_message("No YouTube video link found.")
+        await interaction.response.send_message("No YouTube video link found.", ephemeral=True)
 
 
 # @app_commands.allowed_installs(guilds=True, users=True)
