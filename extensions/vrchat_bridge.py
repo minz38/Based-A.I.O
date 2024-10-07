@@ -26,9 +26,6 @@ class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials")
     vrc_password = discord.ui.TextInput(label="VRChat Password", style=discord.TextStyle.short, required=True)
     vrc_totp = discord.ui.TextInput(label="TOTP Secret", style=discord.TextStyle.short, required=True)
     vrc_group_id = discord.ui.TextInput(label="VRChat Group ID", style=discord.TextStyle.short, required=True)
-    # moderator_channel_id = discord.ui.TextInput(label="Moderator Channel ID", style=discord.TextStyle.short, required=True)
-    # moderator_role = discord.ui.TextInput(label="Moderator Role ID", style=discord.TextStyle.short, required=True)
-    # log_channel_id = discord.ui.TextInput(label="Log Channel ID", style=discord.TextStyle.short, required=True)
 
     def __init__(self, guild_id, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -45,10 +42,63 @@ class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials")
             "vrc_password": encrypted_password,  # Encrypted password
             "vrc_totp": encrypted_totp,  # Encrypted TOTP secret
             "vrc_group_id": self.vrc_group_id.value
-            # "moderator_channel_id": self.moderator_channel_id.value,
-            # "moderator_role": self.moderator_role.value,
-            # "log_channel_id": self.log_channel_id.value
         }
+        # Load existing data from the guild's config file (if any)
+        guild_config_file = os.path.join(CONFIG_PATH, f"{self.guild_id}.json")
+        if os.path.exists(guild_config_file):
+            with open(guild_config_file, 'r') as f:
+                data = json.load(f)
+        else:
+            data = {}
+
+        # Update the existing data with the new credentials
+        data.update(credentials)
+
+        # Defer the interaction and present the second modal
+        await interaction.response.defer(ephemeral=True)
+
+        # Send the second modal for additional settings
+        view = discord.ui.View()
+        view.add_item(ProceedToAdditionalModalButton(guild_id=self.guild_id, initial_data=data))
+        await interaction.followup.send("Click the button below to continue setting up additional settings.\n"
+                                        "You you will need Moderator Channel ID, Moderator Role ID and A Log channel "
+                                        "ID.",
+                                        view=view,
+                                        ephemeral=True)
+
+
+class ProceedToAdditionalModalButton(discord.ui.Button):
+    def __init__(self, guild_id, initial_data):
+        super().__init__(label="Proceed to step 2", style=discord.ButtonStyle.green)
+        self.guild_id = guild_id
+        self.initial_data = initial_data
+
+    async def callback(self, interaction: discord.Interaction):
+        # Show the second modal for additional settings
+        await interaction.response.send_modal(AdditionalSettingsModal(guild_id=self.guild_id,
+                                                                      initial_data=self.initial_data))
+
+
+class AdditionalSettingsModal(discord.ui.Modal, title="Enter Additional Settings"):
+    moderator_channel_id = discord.ui.TextInput(label="Moderator Channel ID",style=discord.TextStyle.short,
+                                                required=True)
+    moderator_role = discord.ui.TextInput(label="Moderator Role ID", style=discord.TextStyle.short,
+                                          required=True)
+    log_channel_id = discord.ui.TextInput(label="Log Channel ID", style=discord.TextStyle.short,
+                                          required=True)
+
+    def __init__(self, guild_id, initial_data, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.guild_id = guild_id
+        self.initial_data = initial_data  # Contains data from the first modal
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # Update the initial credentials with the new values
+        self.initial_data.update({
+            "moderator_channel_id": self.moderator_channel_id.value,
+            "moderator_role": self.moderator_role.value,
+            "log_channel_id": self.log_channel_id.value
+        })
 
         # Path for the guild's config file
         guild_config_file = os.path.join(CONFIG_PATH, f"{self.guild_id}.json")
@@ -56,30 +106,20 @@ class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials")
         # Ensure the directory exists
         os.makedirs(CONFIG_PATH, exist_ok=True)
 
-        # Load existing data if the file exists
-        if os.path.exists(guild_config_file):
-            with open(guild_config_file, 'r') as f:
-                data = json.load(f)
-        else:
-            data = {}
-
-        # Store the VRChat credentials in the guild's config file
-        data.update(credentials)
-
         # Save the updated data to the guild's config file
         with open(guild_config_file, 'w') as f:
-            json.dump(data, f, indent=4)
+            json.dump(self.initial_data, f, indent=4)
 
-        logger.info(f"Stored VRChat credentials for guild {self.guild_id}")
+        logger.info(f"Stored additional settings for guild {self.guild_id}")
 
         # Respond to the user
-        await interaction.response.send_message("VRChat credentials have been successfully stored!", ephemeral=True) # noqa
+        await interaction.response.send_message("Additional settings have been successfully stored!", ephemeral=True)
 
 
 # Create a view for the buttons
 class ConfirmView(discord.ui.View):
     def __init__(self, guild_id, bot):
-        super().__init__(timeout=120)  # View timeout after 60 seconds
+        super().__init__(timeout=600)  # View timeout after 60 seconds
         self.guild_id = guild_id
         self.bot = bot
 
