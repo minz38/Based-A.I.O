@@ -8,7 +8,7 @@ from vrchatapi.models.two_factor_auth_code import TwoFactorAuthCode
 from vrchatapi.models.two_factor_email_code import TwoFactorEmailCode
 from vrchatapi.api.groups_api import GroupsApi
 from vrchatapi.api.users_api import UsersApi
-from dependencies.encryption_handler import decrypt_test
+from dependencies.encryption_handler import decrypt
 from logger import LoggerManager
 
 logger = LoggerManager(name="VrchatApiHandler", level="INFO", log_file="logs/vrc-api.log").get_logger()
@@ -26,8 +26,8 @@ class VrchatApiHandler:
         if config_check_result:
             # assign the keys values to instance variables
             self.vrc_username = config_check_result['vrc_username']
-            self.vrc_passwd = decrypt_test(config_check_result['vrc_password'])
-            self.vrc_totp = decrypt_test(config_check_result['vrc_totp'])
+            self.vrc_passwd = decrypt(config_check_result['vrc_password'])
+            self.vrc_totp = decrypt(config_check_result['vrc_totp'])
             self.vrc_group_id = config_check_result['vrc_group_id']
             self.moderator_channel_id = config_check_result['moderator_channel_id']
             self.moderator_role = config_check_result['moderator_role']
@@ -102,7 +102,6 @@ class VrchatApiHandler:
             if not join_requests:
                 logger.error("No join requests found.")
                 return None
-            print(join_requests)
 
             join_request_entries = []
             for request in join_requests:
@@ -127,3 +126,27 @@ class VrchatApiHandler:
 
         except vrchatapi.ApiException as err:
             logger.error("Exception when fetching join Requests from vrc_api: %s\n", err)
+
+    def get_user_profile(self, user_id):
+
+        try:
+            user_profile = self.user_api.get_user(user_id)
+            # print(user_profile)
+            profile_data = {
+                "User ID": user_profile.id,
+                "Display Name": user_profile.display_name,
+                "Bio": user_profile.bio,
+                "Bio Links": user_profile.bio_links,
+                "Profile Picture URL": user_profile.current_avatar_image_url,
+                "Avatar Image URL": user_profile.current_avatar_thumbnail_image_url,
+                "Profile Pic Override": user_profile.profile_pic_override,
+                "Profile Thumbnail Override": user_profile.profile_pic_override_thumbnail,
+                "Status": user_profile.status,
+                "Status Description": user_profile.status_description,
+                "last Login": user_profile.last_login
+            }
+            return profile_data
+
+        except vrchatapi.ApiException as er:
+            print("Exception when calling API: %s\n", er)
+            return None

@@ -228,20 +228,37 @@ class VrchatApi(commands.Cog):
                     # Fetch invite requests using self.vrc_handler
                     invite_requests = self.vrc_handler.get_group_join_requests()
 
-                    if invite_requests:  # If we have valid invite requests
-                        invite_list = [
-                            f"Request ID: {request['request_id']}, Requester: {request['requester_display_name']}"
-                            for request in invite_requests
-                        ]
-                        await interaction.edit_original_response(embed=discord.Embed(
-                            title="Invite Requests",
-                            description="\n".join(invite_list)  # Join only if it's an iterable
-                        ))
-                    else:  # Handle the case where there are no invite requests
-                        await interaction.edit_original_response(
-                            content="No invite requests found.",
-                            embed=None  # Clear the embed if you're using a plain message
-                        )
+                    if invite_requests:
+                        for request in invite_requests:
+                            user_id = request['requester_id']
+                            profile_data = self.vrc_handler.get_user_profile(user_id)
+                            # print(profile_data)
+                            embed = discord.Embed()
+                            embed.title = f"{profile_data['Display Name']}"
+                            embed.description = f"Requests to join the VRChat group"
+                            embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
+                            embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
+                            embed.add_field(name="Profile URL",
+                                            value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/profiles/{user_id}>)", inline=False)
+                            guild_id = interaction.guild_id
+                            view = InviteRequestViewer(guild_id, request['request_id'])
+
+                            await interaction.followup.send(embed=embed, ephemeral=False, view=view)
+
+                    # if invite_requests:  # If we have valid invite requests
+                    #     invite_list = [
+                    #         f"Request ID: {request['request_id']}, Requester: {request['requester_display_name']}"
+                    #         for request in invite_requests
+                    #     ]
+                    #     await interaction.edit_original_response(embed=discord.Embed(
+                    #         title="Invite Requests",
+                    #         description="\n".join(invite_list)  # Join only if it's an iterable
+                    #     ))
+                    # else:  # Handle the case where there are no invite requests
+                    #     await interaction.edit_original_response(
+                    #         content="No invite requests found.",
+                    #         embed=None  # Clear the embed if you're using a plain message
+                    #     )
                 else:
                     await interaction.response.send_message("You need to log in first.", ephemeral=True)
 
@@ -267,6 +284,23 @@ class VrchatApi(commands.Cog):
                                                     ephemeral=True)
 
 
+class InviteRequestViewer(discord.ui.View):
+    def __init__(self, guild_id: int, join_requests):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+        self.join_requests = join_requests
+    @discord.ui.button(label="Invite", style=discord.ButtonStyle.green)
+    async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(f"Handling Invite")
+
+    @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
+    async def reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(f"Handling Reject")
+    # create a embed for each join request, add Buttons to Invite, Reject, Block & Reject
+
+    @discord.ui.button(label="Block & Reject", style=discord.ButtonStyle.grey)
+    async def block_and_reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(f"Handling Block & Reject")
 
 # set up the cog
 async def setup(bot):
