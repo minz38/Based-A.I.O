@@ -45,9 +45,18 @@ def encrypt(data: str, key: bytes) -> str:
 
 
 # Decrypt the data
-def decrypt(encrypted_data: str, key: bytes) -> str:
+def decrypt(encrypted_data: str) -> str:
     """Decrypts an encrypted string using the provided key."""
+    key = load_key_from_config()  # Load the encryption key (if it doesn't exist, generate a new one)
     fernet = Fernet(key)
     decrypted_data = fernet.decrypt(
         base64.urlsafe_b64decode(encrypted_data.encode()))  # Decode the string before decrypting
     return decrypted_data.decode()  # Return the decrypted string
+
+
+# def decrypt_test(encrypted_data: str) -> str:
+#     key = load_key_from_config()
+#     fernet = Fernet(key)
+#     decrypted_data = fernet.decrypt(
+#         base64.urlsafe_b64decode(encrypted_data.encode()))  # Decode the string before decrypting
+#     return decrypted_data.decode()  # Return the decrypted string
