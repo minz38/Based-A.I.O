@@ -25,10 +25,10 @@ class VrchatApiHandler:
 
         if config_check_result:
             # assign the keys values to instance variables
-            self.vrc_username = config_check_result['username']
-            self.vrc_passwd = decrypt_test(config_check_result['password'])
-            self.vrc_totp = decrypt_test(config_check_result['totp_secret'])
-            self.vrc_group_id = config_check_result['group_id']
+            self.vrc_username = config_check_result['vrc_username']
+            self.vrc_passwd = decrypt_test(config_check_result['vrc_password'])
+            self.vrc_totp = decrypt_test(config_check_result['vrc_totp'])
+            self.vrc_group_id = config_check_result['vrc_group_id']
             self.moderator_channel_id = config_check_result['moderator_channel_id']
             self.moderator_role = config_check_result['moderator_role']
             self.log_channel_id = config_check_result['log_channel_id']
@@ -46,7 +46,7 @@ class VrchatApiHandler:
 
             try:
                 current_user = self.auth_api.get_current_user()
-                logger.info(f'Logged in as:', current_user.display_name)
+                logger.info(f'Logged in as: {current_user.display_name}')
 
             except UnauthorizedException as e:
                 if e.status == 200:
@@ -58,23 +58,23 @@ class VrchatApiHandler:
                         self.auth_api.verify2_fa(two_factor_auth_code=TwoFactorAuthCode(code=code))
                     self.current_user = self.auth_api.get_current_user()
                 else:
-                    logger.error("Exception when calling API: %s\n", e)
+                    logger.error("Exception when calling API: %s", e)
 
             except vrchatapi.ApiException as e:
-                logger.error("Exception when calling API: %s\n", e)
-            logger.info(f'Logged in as:', self.current_user.display_name)
+                logger.error("Exception when calling API: %s", e)
+            logger.info(f'Logged in as: {self.current_user.display_name}')  # Second logging corrected
 
             # use these to interact with the VRChat API
             self.group_api = GroupsApi(self.api_client)
             self.user_api = UsersApi(self.api_client)
 
-    async def generate_totp_code(self):
+    def generate_totp_code(self):
         totp = pyotp.TOTP(self.vrc_totp)
         return totp.now()
 
     # check if a config exists for the current guild
-    async def check_config(self):
-        with open(f'config/{self.guild}.json', 'r') as conf:
+    def check_config(self):
+        with open(f'configs/guilds/{self.guild}.json', 'r') as conf:
             config = json.load(conf)
 
         # check if the required keys exist in the config
@@ -94,36 +94,36 @@ class VrchatApiHandler:
 
             return config
 
+    def get_group_join_requests(self):
 
-async def get_group_join_requests(self):
+        try:
+            join_requests = self.group_api.get_group_requests(self.vrc_group_id)
 
-    try:
-        join_requests = self.group_api.get_group_requests(self.group_id)
+            if not join_requests:
+                logger.error("No join requests found.")
+                return None
+            print(join_requests)
 
-        if not join_requests:
-            logger.error("No join requests found.")
-            return None
+            join_request_entries = []
+            for request in join_requests:
+                join_request_entry = {
+                    "request_id": request.id,
+                    "group_id": request.group_id,
+                    "created_at": request.created_at,
+                    "requester_display_name": request.user.display_name,
+                    "requester_id": request.user.id,
+                    "status": request.membership_status,
+                    "joined_at": request.joined_at,
+                    "user_thumbnail_url": request.user.thumbnail_url,
+                    "current_user_avatar_thumbnail": request.user.current_avatar_thumbnail_image_url,
+                    "profile_pic_override": request.user.profile_pic_override,
+                    "user_icon_url": request.user.icon_url
+                }
 
-        join_request_entries = []
-        for request in join_requests:
-            join_request_entry = {
-                "request_id": request.id,
-                "group_id": request.group_id,
-                "created_at": request.created_at,
-                "requester_display_name": request.user.display_name,
-                "requester_id": request.user.id,
-                "status": request.membership_status,
-                "joined_at": request.joined_at,
-                "user_thumbnail_url": request.user.thumbnail_url,
-                "current_user_avatar_thumbnail": request.user.current_avatar_thumbnail_image_url,
-                "profile_pic_override": request.user.profile_pic_override,
-                "user_icon_url": request.user.icon_url
-            }
+                # append request entry to the list
+                join_request_entries.append(join_request_entry)
+            logger.info("Fetched %s join requests.", len(join_requests))
+            return join_request_entries
 
-            # append request entry to the list
-            join_request_entries.append(join_request_entry)
-
-        return join_request_entries
-
-    except vrchatapi.ApiException as err:
-        logger.error("Exception when fetching join Requests from vrc_api: %s\n", err)
+        except vrchatapi.ApiException as err:
+            logger.error("Exception when fetching join Requests from vrc_api: %s\n", err)

@@ -164,6 +164,7 @@ class ConfirmView(discord.ui.View):
 class VrchatApi(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.vrc_handler = None
 
     @app_commands.command(name="setup_vrchat", description="Setup VRChat API for this Guild")
     @app_commands.allowed_installs(guilds=True, users=False)
@@ -191,14 +192,80 @@ class VrchatApi(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True) # noqa
 
     # Manually check for new guild join requests
-    @app_commands.command(name="vrc", description="Perform Various VRChat API opperations")
+    @app_commands.command(name="vrc", description="Perform Various VRChat API operations")
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @app_commands.allowed_installs(guilds=True, users=False)
-    async def vrc(self, interaction: discord.Interaction, operation: str):
-        if operation == "initialize class":
-            vrc = VrchatApiHandler(interaction.guild_id)
-            await interaction.response.send_message(f"VRChat API initialized for guild {vrc.vrc_group_id} "
-                                                    f"{vrc.vrc_username}.")
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.choices(operation=[app_commands.Choice(name="Check Login Status", value="check_login_status"),
+                                     app_commands.Choice(name="Setup Invite Handler", value="setup_invite_handler"),
+                                     app_commands.Choice(name="Log In", value="login"),
+                                     app_commands.Choice(name="Get Invite Requests", value="get_invite_requests")])
+    async def vrc(self, interaction: discord.Interaction, operation: app_commands.Choice[str]):
+        """Handle VRChat API operations."""
+        match operation.value:
+            case "check_login_status":
+                if self.vrc_handler:
+                    # Add logic to check the current status using self.vrc_handler
+                    await interaction.response.send_message(f"Logged in as "
+                                                            f"{self.vrc_handler.current_user.display_name}")  # noqa
+                else:
+                    await interaction.response.send_message("The bot is not logged in yet.", ephemeral=True)  # noqa
+
+            case "setup_invite_handler":
+                if self.vrc_handler:
+                    # Call relevant invite handler logic here
+                    await interaction.response.send_message("Setting up the invite handler...", ephemeral=True)  # noqa
+                else:
+                    await interaction.response.send_message("You need to log in first.", ephemeral=True)  # noqa
+
+            case "login":
+                # Call the login method and notify the user
+                await self.vrc_bot_login(interaction)
+            case "get_invite_requests":
+                if self.vrc_handler:
+                    await interaction.response.send_message("Fetching invite requests...", ephemeral=True)
+
+                    # Fetch invite requests using self.vrc_handler
+                    invite_requests = self.vrc_handler.get_group_join_requests()
+
+                    if invite_requests:  # If we have valid invite requests
+                        invite_list = [
+                            f"Request ID: {request['request_id']}, Requester: {request['requester_display_name']}"
+                            for request in invite_requests
+                        ]
+                        await interaction.edit_original_response(embed=discord.Embed(
+                            title="Invite Requests",
+                            description="\n".join(invite_list)  # Join only if it's an iterable
+                        ))
+                    else:  # Handle the case where there are no invite requests
+                        await interaction.edit_original_response(
+                            content="No invite requests found.",
+                            embed=None  # Clear the embed if you're using a plain message
+                        )
+                else:
+                    await interaction.response.send_message("You need to log in first.", ephemeral=True)
+
+            case _:
+                await interaction.response.send_message("Invalid operation. Please choose from the options provided.",  # noqa
+                                                        ephemeral=True)
+
+    async def vrc_bot_login(self, interaction: discord.Interaction):
+        """Login the bot using VRChat API."""
+        try:
+            guild_id = interaction.guild_id
+            # Initialize the VrchatApiHandler
+            self.vrc_handler = VrchatApiHandler(guild_id)
+
+            # If successful, respond to the interaction
+            await interaction.response.send_message(f"Logged in as {self.vrc_handler.current_user.display_name}") # noqa
+            logger.info(f"VRChat API logged in for guild {guild_id}")
+
+        except Exception as e:
+            # If any error occurs during the login, notify the user
+            logger.error(f"Failed to log in to VRChat API: {e}")
+            await interaction.response.send_message("Failed to log in. Please check the logs for more details.", # noqa
+                                                    ephemeral=True)
+
 
 
 # set up the cog
