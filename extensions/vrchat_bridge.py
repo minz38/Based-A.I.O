@@ -5,7 +5,7 @@ import json
 import os
 from logger import LoggerManager
 import dependencies.encryption_handler as encryption_handler
-# from extensions.vrcapi.vrc_api import VrchatApiHandler
+from extensions.vrcapi.vrc_api import VrchatApiHandler
 
 # Initialize the logger
 logger = LoggerManager(name="VRC-API", level="INFO", log_file="logs/vrc-api.log").get_logger()
@@ -16,6 +16,9 @@ CONFIG_PATH = "configs/guilds"
 # Load the encryption key from the config
 key = encryption_handler.load_key_from_config()
 
+json_keys = ["vrc_username", "vrc_password", "vrc_totp", "vrc_group_id", "moderator_channel_id",
+                        "moderator_role", "log_channel_id"]
+
 
 # Create a Modal class for the form
 class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials"):
@@ -23,6 +26,9 @@ class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials")
     vrc_password = discord.ui.TextInput(label="VRChat Password", style=discord.TextStyle.short, required=True)
     vrc_totp = discord.ui.TextInput(label="TOTP Secret", style=discord.TextStyle.short, required=True)
     vrc_group_id = discord.ui.TextInput(label="VRChat Group ID", style=discord.TextStyle.short, required=True)
+    # moderator_channel_id = discord.ui.TextInput(label="Moderator Channel ID", style=discord.TextStyle.short, required=True)
+    # moderator_role = discord.ui.TextInput(label="Moderator Role ID", style=discord.TextStyle.short, required=True)
+    # log_channel_id = discord.ui.TextInput(label="Log Channel ID", style=discord.TextStyle.short, required=True)
 
     def __init__(self, guild_id, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -39,6 +45,9 @@ class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials")
             "vrc_password": encrypted_password,  # Encrypted password
             "vrc_totp": encrypted_totp,  # Encrypted TOTP secret
             "vrc_group_id": self.vrc_group_id.value
+            # "moderator_channel_id": self.moderator_channel_id.value,
+            # "moderator_role": self.moderator_role.value,
+            # "log_channel_id": self.log_channel_id.value
         }
 
         # Path for the guild's config file
@@ -99,14 +108,8 @@ class ConfirmView(discord.ui.View):
                 data = json.load(f)
 
             # Check if the key exists before trying to delete it
-            if data.get("vrc_username"):
-                del data["vrc_username"]
-            if data.get("vrc_password"):
-                del data["vrc_password"]
-            if data.get("vrc_totp"):
-                del data["vrc_totp"]
-            if data.get("vrc_group_id"):
-                del data["vrc_group_id"]
+            for entry in json_keys:
+                data.pop(entry, None)
 
             with open(guild_config_file, 'w') as f:
                 json.dump(data, f, indent=4)
@@ -123,6 +126,8 @@ class VrchatApi(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="setup_vrchat", description="Setup VRChat API for this Guild")
+    @app_commands.allowed_installs(guilds=True, users=False)
+    @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @discord.app_commands.default_permissions(manage_guild=True)
     async def setup_vrchat(self, interaction: discord.Interaction):
         """Command to set up the VRChat API by requesting user credentials."""
@@ -144,6 +149,16 @@ class VrchatApi(commands.Cog):
 
         # Send the warning message with the buttons
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True) # noqa
+
+    # Manually check for new guild join requests
+    @app_commands.command(name="vrc", description="Perform Various VRChat API opperations")
+    @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
+    @app_commands.allowed_installs(guilds=True, users=False)
+    async def vrc(self, interaction: discord.Interaction, operation: str):
+        if operation == "initialize class":
+            vrc = VrchatApiHandler(interaction.guild_id)
+            await interaction.response.send_message(f"VRChat API initialized for guild {vrc.vrc_group_id} "
+                                                    f"{vrc.vrc_username}.")
 
 
 # set up the cog
