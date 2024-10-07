@@ -233,17 +233,27 @@ class VrchatApi(commands.Cog):
                             user_id = request['requester_id']
                             profile_data = self.vrc_handler.get_user_profile(user_id)
                             # print(profile_data)
-                            embed = discord.Embed()
+                            embed = discord.Embed(color=discord.Color.blue())
                             embed.title = f"{profile_data['Display Name']}"
                             embed.description = f"Requests to join the VRChat group"
                             embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
                             embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
                             embed.add_field(name="Profile URL",
-                                            value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/profiles/{user_id}>)", inline=False)
+                                            value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/home/user/{user_id}>)", inline=False)
                             guild_id = interaction.guild_id
-                            view = InviteRequestViewer(guild_id, request['request_id'])
 
-                            await interaction.followup.send(embed=embed, ephemeral=False, view=view)
+                            message = await interaction.followup.send(embed=embed, ephemeral=False)
+
+                            # Pass message.id to the view
+                            view = InviteRequestViewer(guild_id=guild_id,
+                                                       vrc_handler=self.vrc_handler,
+                                                       user_id=user_id,
+                                                       user_name=profile_data['Display Name'],
+                                                       moderator_name=interaction.user.name,
+                                                       message_id=message.id)
+
+                            # Edit the message with the view
+                            await message.edit(view=view)
 
                     # if invite_requests:  # If we have valid invite requests
                     #     invite_list = [
@@ -285,13 +295,27 @@ class VrchatApi(commands.Cog):
 
 
 class InviteRequestViewer(discord.ui.View):
-    def __init__(self, guild_id: int, join_requests):
+    def __init__(self, guild_id: int, vrc_handler, user_id, user_name, moderator_name, message_id):
         super().__init__(timeout=None)
+        self.vrc_handler = vrc_handler
         self.guild_id = guild_id
-        self.join_requests = join_requests
-    @discord.ui.button(label="Invite", style=discord.ButtonStyle.green)
+        self.user_id = user_id
+        self.user_name = user_name
+        self.moderator_name = moderator_name
+        self.message_id = message_id
+
+    @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(f"Handling Invite")
+        if self.vrc_handler.handle_request(user_id=self.user_id,
+                                           user_name=self.user_name,
+                                           moderator_name=self.moderator_name,
+                                           action="Accept"):
+            await interaction.message.edit()
+            # await interaction.response.edit_message(content=f"{self.user_name} has been accepted by "
+            #                                                 f"{self.moderator_name}.")
+        else:
+            await interaction.followup.send(content=f"Failed to accept {self.user_name}.\n"
+                                                    f"Please check the logs for more details.")
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
     async def reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):

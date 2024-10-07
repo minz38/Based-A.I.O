@@ -150,3 +150,35 @@ class VrchatApiHandler:
         except vrchatapi.ApiException as er:
             print("Exception when calling API: %s\n", er)
             return None
+
+    def handle_request(self, user_id, user_name, moderator_name, action):
+        try:
+            match action:
+                case "Accept":
+                    self.group_api.respond_group_join_request_with_http_info(
+                        user_id=user_id,
+                        group_id=self.vrc_group_id,
+                        respond_group_join_request={"action": "accept", "block": False}
+                    )
+                    logger.info(f"VRC User {user_name} has been accepted into the group by {moderator_name}.")
+                    return True
+                case "Reject":
+                    self.group_api.respond_group_join_request_with_http_info(
+                        user_id=user_id,
+                        group_id=self.vrc_group_id,
+                        respond_group_join_request={"action": "reject", "block": False}
+                    )
+                    logger.info(f"VRC User {user_name} has been rejected by {moderator_name}.")
+                    return True
+                case "Block":
+                    self.group_api.respond_group_join_request_with_http_info(
+                        user_id=user_id,
+                        group_id=self.vrc_group_id,
+                        respond_group_join_request={"action": "deny", "block": True}
+                    )
+                    logger.info(f"VRC User {user_name} has been blocked by {moderator_name}.")
+                    return True
+
+        except vrchatapi.ApiException as err:
+            logger.error("Exception when handling join request: %s\n", err)
+            return False
