@@ -310,21 +310,59 @@ class InviteRequestViewer(discord.ui.View):
                                            user_name=self.user_name,
                                            moderator_name=self.moderator_name,
                                            action="Accept"):
-            await interaction.message.edit()
-            # await interaction.response.edit_message(content=f"{self.user_name} has been accepted by "
-            #                                                 f"{self.moderator_name}.")
+
+            channel = interaction.channel
+            message = await channel.fetch_message(self.message_id)
+            embed = message.embeds[0]
+            embed.colour = discord.Color.green()
+            embed.set_footer(text=f"Accepted by {self.moderator_name}")
+            accept_message = f"The user **{self.user_name}** has been accepted by **{self.moderator_name}**"
+            await message.edit(content=accept_message, view=None, embed=embed)
+
         else:
             await interaction.followup.send(content=f"Failed to accept {self.user_name}.\n"
                                                     f"Please check the logs for more details.")
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
     async def reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(f"Handling Reject")
-    # create a embed for each join request, add Buttons to Invite, Reject, Block & Reject
+        if self.vrc_handler.handle_request(user_id=self.user_id,
+                                           user_name=self.user_name,
+                                           moderator_name=self.moderator_name,
+                                           action="Reject"):
+
+
+            channel = interaction.channel
+            message = await channel.fetch_message(self.message_id)
+            embed = message.embeds[0]
+            embed.colour = discord.Color.red()
+            embed.set_footer(text=f"Rejected by {self.moderator_name}")
+            accept_message = f"The user **{self.user_name}** has been rejected by **{self.moderator_name}**"
+            await message.edit(content=accept_message, view=None, embed=embed)
+
+        else:
+            await interaction.followup.send(content=f"Failed to reject {self.user_name}.\n"
+                                                    f"Please check the logs for more details.")
+
+
 
     @discord.ui.button(label="Block & Reject", style=discord.ButtonStyle.grey)
     async def block_and_reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message(f"Handling Block & Reject")
+        if self.vrc_handler.handle_request(user_id=self.user_id,
+                                           user_name=self.user_name,
+                                           moderator_name=self.moderator_name,
+                                           action="Block"):
+
+            channel = interaction.channel
+            message = await channel.fetch_message(self.message_id)
+            embed = message.embeds[0]
+            embed.colour = discord.Color.red()
+            embed.set_footer(text=f"Rejected & Blocked from further requests by {self.moderator_name}")
+            accept_message = f"The user **{self.user_name}** has been rejected by **{self.moderator_name}**"
+            await message.edit(content=accept_message, view=None, embed=embed)
+
+        else:
+            await interaction.followup.send(content=f"Failed to reject {self.user_name}.\n"
+                                                    f"Please check the logs for more details.")
 
 # set up the cog
 async def setup(bot):

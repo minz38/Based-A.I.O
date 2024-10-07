@@ -178,6 +178,9 @@ class VrchatApiHandler:
                     )
                     logger.info(f"VRC User {user_name} has been blocked by {moderator_name}.")
                     return True
+                case _:
+                    logger.error(f"Invalid action: {action}. Supported actions are 'Accept', 'Reject', 'Block'.")
+                    return False
 
         except vrchatapi.ApiException as err:
             logger.error("Exception when handling join request: %s\n", err)
