@@ -16,6 +16,8 @@ twitter_keys = ["twitter_consumer_key",
                 "twitter_access_token_secret",
                 "twitter_user_id",
                 "twitter_report_channel_id"]
+
+
 class TwitterFetcher(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -36,7 +38,8 @@ class TwitterFetcher(commands.Cog):
                 embed = discord.Embed(
                     title="Security Notice",
                     description=(
-                        "Your Twitter credentials will be stored **encrypted**, but please only proceed if you trust the host "
+                        "Your Twitter credentials will be stored **encrypted**, "
+                        "but please only proceed if you trust the host "
                         "of this bot.\n\nFor full security, consider running the bot yourself. "
                         "You can find it online at [Based A.I.O GitHub](https://github.com/minz38/Based-A.I.O)."
                     ),
@@ -99,9 +102,8 @@ class TwitterCredentialsModal(discord.ui.Modal, title="Enter Twitter API Credent
 
         view = NextStep(guild_id=self.guild_id)
 
-
         # Send a success message to the user
-        await interaction.response.send_message(content="Twitter API credentials saved successfully!", view=view)
+        await interaction.response.send_message(content="Twitter API credentials saved successfully!", view=view) # noqa
 
 
 class SetupModalStepTwo(discord.ui.Modal, title="Setup Step 2"):
@@ -120,7 +122,6 @@ class SetupModalStepTwo(discord.ui.Modal, title="Setup Step 2"):
         with open(os.path.join(config_path, f"{self.guild_id}.json"), 'r') as f:
             guild_config = json.load(f)
 
-
         credentials = {
             "twitter_user_id": self.user_id.value,
             "twitter_report_channel_id": self.report_channel_id.value,
@@ -134,8 +135,7 @@ class SetupModalStepTwo(discord.ui.Modal, title="Setup Step 2"):
             json.dump(guild_config, f, indent=4)
 
         # Send a success message to the user
-        await interaction.response.send_message("Twitter API credentials saved successfully!")
-
+        await interaction.response.send_message("Twitter API credentials saved successfully!") # noqa
 
 
 # confirm view
@@ -148,7 +148,7 @@ class ConfirmView(discord.ui.View):
     @discord.ui.button(label="Proceed", style=discord.ButtonStyle.green)
     async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         modal = TwitterCredentialsModal(guild_id=self.guild_id)
-        await interaction.response.send_modal(modal)
+        await interaction.response.send_modal(modal) # noqa
 
     @discord.ui.button(label="Abort", style=discord.ButtonStyle.red)
     async def abort_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -157,7 +157,7 @@ class ConfirmView(discord.ui.View):
 
     @discord.ui.button(label="Delete Config", style=discord.ButtonStyle.grey)
     async def delete_config_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # load the config and delete the keys realted to twitter
+
         guild_config_file = os.path.join(config_path, f"{self.guild_id}.json")
         if os.path.exists(guild_config_file):
             with open(guild_config_file, 'r') as f:
@@ -171,7 +171,7 @@ class ConfirmView(discord.ui.View):
                 json.dump(guild_config, f, indent=4)
 
             # Send a success message to the user
-            await interaction.response.send_message("Twitter API credentials and configuration deleted successfully!")
+            await interaction.response.send_message("Twitter API credentials and configuration deleted successfully!") # noqa
             self.stop()  # Stops the view from listening for
 
 
@@ -194,14 +194,14 @@ class SetupModal(discord.ui.Modal, title="Setup Twitter Event"):
         self.guild_id = guild_id
 
     event_name = discord.ui.TextInput(label="Event Name",
-                                        style=discord.TextStyle.short,
-                                        required=True)
+                                      style=discord.TextStyle.short,
+                                      required=True)
     event_description = discord.ui.TextInput(label="Event Description",
-                                               style=discord.TextStyle.short,
-                                               required=True)
+                                             style=discord.TextStyle.short,
+                                             required=True)
     event_date = discord.ui.TextInput(label="Event Date (YYYY-MM-DD)",
-                                       style=discord.TextStyle.short,
-                                       required=True)
+                                      style=discord.TextStyle.short,
+                                      required=True)
 
 
 # Add the cog to the bot
