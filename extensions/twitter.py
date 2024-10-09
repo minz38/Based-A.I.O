@@ -204,6 +204,15 @@ class SetupModal(discord.ui.Modal, title="Setup Twitter Event"):
                                       required=True)
 
 
+class TweepyFetcher(commands.Cog):
+    def __init__(self, bot, guild_id):
+        self.bot = bot
+        self.guild_id = guild_id
+
+        with open(os.path.join(config_path, f"{guild_id}.json"), 'r') as f:
+            self.config = json.load(f)
+
+
 # Add the cog to the bot
 async def setup(bot):
     await bot.add_cog(TwitterFetcher(bot))
