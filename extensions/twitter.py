@@ -5,6 +5,9 @@ from discord import app_commands
 from discord.ext import tasks, commands
 import tweepy
 import dependencies.encryption_handler as encryption_handler
+from logger import LoggerManager
+
+logger = LoggerManager(name="TwitterFetcher", level="INFO", log_file="logs/twitter_fetcher.log").get_logger()
 
 config_path = "configs/guilds/"
 
@@ -27,7 +30,8 @@ class TwitterFetcher(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.choices(operation=[app_commands.Choice(name="Setup", value="twitter_setup"),
-                                     app_commands.Choice(name="Start", value="start_twitter_event")])
+                                     app_commands.Choice(name="Start", value="start_twitter_event"),
+                                     app_commands.Choice(name="Get last Tweet", value="get_last_tweet")])
     async def twitter_command(self, interaction: discord.Interaction, operation: app_commands.Choice[str]):
 
         match operation.value:
@@ -54,9 +58,23 @@ class TwitterFetcher(commands.Cog):
                 pass
 
             case "start_twitter_event":
-                with open(os.path.join(config_path, f"{interaction.guild_id}.json"), 'r') as f:
-                    guild_config = json.load(f)
+                # TODO: Enable Twitter bot event in the guild's config file
                 pass
+
+            case "get_last_tweet":
+                guild_id = interaction.guild_id
+                # Create a twitter api instance
+                twitter_api = TweepyFetcher(bot=self.bot, guild_id=guild_id)
+
+                # Fetch the last tweet and send it to the Discord channel
+
+                last_tweet = twitter_api.fetch_tweets()
+                if last_tweet is None:
+                    await interaction.response.send_message(content="Failed to fetch the last tweet.")
+                    return
+                else:
+                    await interaction.response.send_message(content=last_tweet)
+
 
 
 # modal to enter Twitter API credentials and store them into the guild's config file
@@ -150,6 +168,11 @@ class ConfirmView(discord.ui.View):
         modal = TwitterCredentialsModal(guild_id=self.guild_id)
         await interaction.response.send_modal(modal) # noqa
 
+    @discord.ui.button(label="Proceed step 2.", style=discord.ButtonStyle.green)
+    async def confirm_step_two_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = SetupModalStepTwo(guild_id=self.guild_id)
+        await interaction.response.send_modal(modal) # noqa
+
     @discord.ui.button(label="Abort", style=discord.ButtonStyle.red)
     async def abort_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message("Twitter API setup aborted.") # noqa
@@ -211,6 +234,45 @@ class TweepyFetcher(commands.Cog):
 
         with open(os.path.join(config_path, f"{guild_id}.json"), 'r') as f:
             self.config = json.load(f)
+
+    def authenticate(self):  # TODO: Place in __init__ method
+        # Authenticate with the Twitter API using Tweepy v2 Client
+        t1 = encryption_handler.decrypt(self.config["twitter_consumer_secret"])
+        t2 = encryption_handler.decrypt(self.config["twitter_access_token_secret"])
+
+        print(f'decrypted consumer key: {t1}')
+        print(f'decrypted access token: {t2}')
+        client = tweepy.Client(
+            consumer_key=self.config["twitter_consumer_key"],
+            consumer_secret=encryption_handler.decrypt(self.config["twitter_consumer_secret"]),
+            access_token=self.config["twitter_access_token"],
+            access_token_secret=encryption_handler.decrypt(self.config["twitter_access_token_secret"])
+        )
+        print(f'logged in ')
+        return client
+
+    def fetch_tweets(self, count=1):
+        client = self.authenticate()  # TODO: Remove
+
+        try:
+            # Fetch the latest tweet(s) from the user's timeline using the Twitter API v2
+            user_id = self.config["twitter_user_id"]
+            response = client.get_users_tweets(id=user_id, max_results=count)
+
+            if not response.data:
+                return None  # No tweets found for this user
+
+            # Get the first tweet (most recent)
+            latest_tweet = response.data[0]
+
+            # Construct the tweet URL using the new 'x.com' domain
+            tweet_url = f"https://x.com/{user_id}/status/{latest_tweet.id}"
+
+            return tweet_url
+
+        except Exception as e:
+            logger.error(f"Error fetching tweets: {e}")
+            return None
 
 
 # Add the cog to the bot
