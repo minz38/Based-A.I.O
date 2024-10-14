@@ -220,13 +220,14 @@ class Inactivity(commands.Cog):
         active_users = []
         inactive_users = []
 
+        # Define the start date based on the provided inactive_for value
         start_date = current_date - relativedelta(months=inactive_for) if inactive_for else None
 
         for user_id, activity_data in data.items():
             user = interaction.guild.get_member(int(user_id))
 
             if user is None or user.bot:
-                continue
+                continue  # Skip bots and members not in the guild
 
             last_activity_date = None
             total_messages = 0
@@ -245,6 +246,7 @@ class Inactivity(commands.Cog):
                         total_messages += month_data.get("message_count", 0)
                         total_voice_time_seconds += month_data.get("voice_channel_time", 0)
 
+                    # Track the most recent activity date
                     if last_activity and last_activity != "null":
                         last_activity_date = datetime.datetime.strptime(last_activity, '%d.%m.%Y')
                         if not inactive_for or last_activity_date >= start_date:
@@ -252,38 +254,54 @@ class Inactivity(commands.Cog):
 
             total_voice_time_hours = total_voice_time_seconds / 3600
 
+            # Check if user was active in the selected period
             if active_in_period:
                 active_users.append((user.display_name, last_activity_date, total_messages, total_voice_time_hours))
             else:
-                inactive_users.append((user.display_name, total_messages, total_voice_time_hours))
+                # Inactive users: record the last_activity_date or show "Never Active"
+                if last_activity_date:
+                    inactive_users.append(
+                        (user.display_name, last_activity_date, total_messages, total_voice_time_hours))
+                else:
+                    inactive_users.append((user.display_name, None, total_messages, total_voice_time_hours))
 
+        # Sort active users by last activity date (most recent first)
         active_users.sort(key=lambda x: x[1], reverse=True)
+
+        # Sort inactive users by name (or leave unsorted if preferred)
         inactive_users.sort(key=lambda x: x[0])
 
+        # Prepare the embed for results
         embed = discord.Embed(
-            title=f"User Activity Check (Last {inactive_for} months)" if inactive_for else "User Activity Check (All Time)",
+            title=f"User Activity Check (Last {inactive_for} months)" if inactive_for else
+            "User Activity Check (All Time)",
             description=f"Showing active and inactive users for the selected period",
             color=discord.Color.blue()
         )
 
+        # Add top 10 active users
         if active_users:
             active_list = "\n".join([
-                f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')} - Messages: {messages}, Voice Time: {voice_time:.2f} hrs"
+                f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')} - Msg: {messages}, "
+                f"Voice: {voice_time:.2f} hrs"
                 for name, date, messages, voice_time in active_users[:10]
             ])
             embed.add_field(name="Top 10 Active Users", value=active_list, inline=False)
         else:
             embed.add_field(name="Top 10 Active Users", value="No active users found", inline=False)
 
+        # Add top 10 inactive users
         if inactive_users:
             inactive_list = "\n".join([
-                f"**{name}** -  Messages: {messages}, Voice Time: {voice_time:.2f} hrs"
-                for name, messages, voice_time in inactive_users[:10]
+                f"**{name}** - Last Active: {'Never Active' if date is None else date.strftime('%d.%m.%Y')} "
+                f"- Msg: {messages}, Voice: {voice_time:.2f} hrs"
+                for name, date, messages, voice_time in inactive_users[:10]
             ])
             embed.add_field(name="Top 10 Inactive Users", value=inactive_list, inline=False)
         else:
             embed.add_field(name="Top 10 Inactive Users", value="No inactive users found", inline=False)
 
+        # Send the embed message
         await interaction.response.send_message(embed=embed)  # noqa
 
 
