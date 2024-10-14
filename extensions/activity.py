@@ -4,6 +4,7 @@ import datetime
 import discord
 from discord.ext import commands
 from discord import app_commands, Interaction
+from dateutil.relativedelta import relativedelta
 from logger import LoggerManager
 
 # Initialize the logger
@@ -204,13 +205,25 @@ class Inactivity(commands.Cog):
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.default_permissions(manage_guild=True)
-    async def activity_check(self, interaction: discord.Interaction):
+    @app_commands.choices(inactive_for=[
+        app_commands.Choice(name="1 month", value=1),
+        app_commands.Choice(name="2 months", value=2),
+        app_commands.Choice(name="3 months", value=3),
+        app_commands.Choice(name="6 months", value=6),
+        app_commands.Choice(name="12 months", value=12)
+    ])
+    async def activity_check(self, interaction: discord.Interaction, inactive_for: int = 1):
         guild_id = interaction.guild.id
         data = self.load_activity_data(guild_id)
 
-        current_year = str(datetime.datetime.now().year)
+        current_date = datetime.datetime.now()
         active_users = []
         inactive_users = []
+
+        # Calculate the starting point (X months ago)
+        start_date = current_date - relativedelta(months=inactive_for)
+        current_year = str(current_date.year)
+        current_month = str(current_date.month)
 
         # Go through each user in the JSON data
         for user_id, activity_data in data.items():
@@ -220,23 +233,40 @@ class Inactivity(commands.Cog):
                 continue  # Skip bots or members no longer in the guild
 
             last_activity_date = None
+            total_messages = 0
+            total_voice_time_seconds = 0
 
-            # Check the activity data for the current year
-            if current_year in activity_data["year"]:
-                year_data = activity_data["year"][current_year]
-                for month, month_data in year_data["month"].items():
-                    last_activity = month_data.get("last_activity")
+            # Track whether the user has been active in the past X months
+            active_in_period = False
 
-                    # If there's a valid last activity date, update it
-                    if last_activity and last_activity != "null":
-                        activity_date = datetime.datetime.strptime(last_activity, '%d.%m.%Y')
-                        if not last_activity_date or activity_date > last_activity_date:
-                            last_activity_date = activity_date
+            # Check activity for the past X months
+            for i in range(inactive_for):
+                check_date = current_date - relativedelta(months=i)
+                check_year = str(check_date.year)
+                check_month = str(check_date.month)
 
-            if last_activity_date:
-                active_users.append((user.display_name, last_activity_date))
+                if check_year in activity_data["year"]:
+                    year_data = activity_data["year"][check_year]
+                    if check_month in year_data["month"]:
+                        month_data = year_data["month"][check_month]
+                        total_messages += month_data.get("message_count", 0)
+                        total_voice_time_seconds += month_data.get("voice_channel_time", 0)
+                        last_activity = month_data.get("last_activity")
+
+                        # If the user has activity in this month, mark them as active
+                        if last_activity and last_activity != "null":
+                            activity_date = datetime.datetime.strptime(last_activity, '%d.%m.%Y')
+                            if activity_date >= start_date:
+                                last_activity_date = activity_date
+                                active_in_period = True
+
+            # Convert voice time from seconds to hours
+            total_voice_time_hours = total_voice_time_seconds / 3600
+
+            if active_in_period:
+                active_users.append((user.display_name, last_activity_date, total_messages, total_voice_time_hours))
             else:
-                inactive_users.append((user.display_name, None))  # No activity, count as inactive
+                inactive_users.append((user.display_name, total_messages, total_voice_time_hours))
 
         # Sort active users by last activity date (most recent first)
         active_users.sort(key=lambda x: x[1], reverse=True)
@@ -246,21 +276,27 @@ class Inactivity(commands.Cog):
 
         # Prepare embed to show the results
         embed = discord.Embed(
-            title="User Activity Check",
-            description=f"Showing top 10 active and inactive users for {current_year}",
+            title=f"User Activity Check (Inactive for {inactive_for} months)",
+            description=f"Showing active and inactive users in the last {inactive_for} months",
             color=discord.Color.blue()
         )
 
         # Add top 10 active users
         if active_users:
-            active_list = "\n".join([f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')}" for name, date in active_users[:10]])
+            active_list = "\n".join([
+                f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')} - Messages: {messages}, Voice Time: {voice_time:.2f} hrs"
+                for name, date, messages, voice_time in active_users[:10]
+            ])
             embed.add_field(name="Top 10 Active Users", value=active_list, inline=False)
         else:
             embed.add_field(name="Top 10 Active Users", value="No active users found", inline=False)
 
         # Add top 10 inactive users
         if inactive_users:
-            inactive_list = "\n".join([f"**{name}** - Last Active: Never" for name, _ in inactive_users[:10]])
+            inactive_list = "\n".join([
+                f"**{name}** - Last Active: Never - Messages: {messages}, Voice Time: {voice_time:.2f} hrs"
+                for name, messages, voice_time in inactive_users[:10]
+            ])
             embed.add_field(name="Top 10 Inactive Users", value=inactive_list, inline=False)
         else:
             embed.add_field(name="Top 10 Inactive Users", value="No inactive users found", inline=False)
