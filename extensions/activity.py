@@ -236,25 +236,30 @@ class Inactivity(commands.Cog):
             # Track whether the user has been active in the past X months
             active_in_period = False
 
-            # Loop through each month to collect activity data
+            # Loop through each year and month to collect activity data
             for year, year_data in activity_data["year"].items():
                 for month, month_data in year_data["month"].items():
                     last_activity = month_data.get("last_activity")
-                    activity_date = datetime.datetime.strptime(f'{month}.01.{year}', '%m.%d.%Y')
 
+                    # Properly construct the activity date from month and year
+                    try:
+                        activity_date = datetime.datetime.strptime(last_activity, '%d.%m.%Y')
+                    except (ValueError, TypeError):
+                        continue
+
+                    # Ensure that we're only counting activity in the past X months if 'inactive_for' is provided
                     if not inactive_for or activity_date >= start_date:
                         total_messages += month_data.get("message_count", 0)
                         total_voice_time_seconds += month_data.get("voice_channel_time", 0)
 
-                    # Track the most recent activity date
-                    if last_activity and last_activity != "null":
-                        last_activity_date = datetime.datetime.strptime(last_activity, '%d.%m.%Y')
-                        if not inactive_for or last_activity_date >= start_date:
+                        # Track the most recent activity date within the time period
+                        if not last_activity_date or activity_date > last_activity_date:
+                            last_activity_date = activity_date
                             active_in_period = True
 
             total_voice_time_hours = total_voice_time_seconds / 3600
 
-            # Check if user was active in the selected period
+            # Check if the user was active in the selected period
             if active_in_period:
                 active_users.append((user.display_name, last_activity_date, total_messages, total_voice_time_hours))
             else:
@@ -282,8 +287,7 @@ class Inactivity(commands.Cog):
         # Add top 10 active users
         if active_users:
             active_list = "\n".join([
-                f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')} - Msg: {messages}, "
-                f"Voice: {voice_time:.2f} hrs"
+                f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')} - Msg: {messages}, Voice: {voice_time:.2f} hrs"
                 for name, date, messages, voice_time in active_users[:10]
             ])
             embed.add_field(name="Top 10 Active Users", value=active_list, inline=False)
@@ -293,10 +297,11 @@ class Inactivity(commands.Cog):
         # Add top 10 inactive users
         if inactive_users:
             inactive_list = "\n".join([
-                f"**{name}** - Last Active: {'Never Active' if date is None else date.strftime('%d.%m.%Y')} "
-                f"- Msg: {messages}, Voice: {voice_time:.2f} hrs"
+                f"**{name}** - Last Active: {'Never Active' if date is None else date.strftime('%d.%m.%Y')} - "
+                f"Msg: {messages}, Voice: {voice_time:.2f} hrs"
                 for name, date, messages, voice_time in inactive_users[:10]
             ])
+            print(inactive_list)  # Debugging output
             embed.add_field(name="Top 10 Inactive Users", value=inactive_list, inline=False)
         else:
             embed.add_field(name="Top 10 Inactive Users", value="No inactive users found", inline=False)
