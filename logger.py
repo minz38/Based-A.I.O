@@ -64,8 +64,8 @@ class LoggerManager:
 
         # Check if the logger already has handlers to avoid duplication
         if not logger.hasHandlers():
-            # File handler to log into a file
-            file_handler = logging.FileHandler(log_file)
+            # File handler to log into a file with UTF-8 encoding
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')  # Added encoding='utf-8'
             file_handler.setLevel(log_level)
             file_formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt=date_format
