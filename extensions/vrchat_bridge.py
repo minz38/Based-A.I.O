@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands, tasks
-from discord import app_commands
+from discord import app_commands, message
 import json
 import os
 from logger import LoggerManager
@@ -21,6 +21,7 @@ json_keys = ["vrc_username", "vrc_password", "vrc_totp", "vrc_group_id", "modera
              "moderator_role", "log_channel_id"]
 
 TEMP_VRC_PATH = "temp/vrc"
+
 
 # Create a Modal class for the form
 class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials"):
@@ -168,18 +169,57 @@ class VrchatApi(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.vrc_handler = None
+        self.guild_id = None
 
         # Delete the temp/vrc folder if it exists
         if os.path.exists(TEMP_VRC_PATH):
             shutil.rmtree(TEMP_VRC_PATH)
             logger.info(f"Deleted folder on VRC-COG initialization: {TEMP_VRC_PATH}")
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=60)
     async def my_background_task(self):
         # Ensure that the bot is logged in before running the task
         if self.vrc_handler is not None:
-            pass
-            # todo logic: use the moderator_channel_id to send the messages every 5 minutes
+            # Fetch invite requests using self.vrc_handler
+            invite_requests = self.vrc_handler.get_group_join_requests()
+
+            if invite_requests:
+                for request in invite_requests:
+                    if self.track_invite_requests(guild_id=self.guild_id,
+                                                  request_id=request['request_id'],
+                                                  message_id=None):
+                        user_id = request['requester_id']
+                        profile_data = self.vrc_handler.get_user_profile(user_id)
+                        # print(profile_data)
+                        embed = discord.Embed(color=discord.Color.blue())
+                        embed.title = f"{profile_data['Display Name']}"
+                        embed.description = f"Requests to join the VRChat group"
+                        embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
+                        embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
+                        embed.add_field(name="Profile URL",
+                                        value=f"[{profile_data['Display Name']}'s "
+                                              f"Profile](<https://vrchat.com/home/user/{user_id}>)",
+                                        inline=False)
+                        channel = self.vrc_handler.moderator_channel_id
+                        channel = self.bot.get_channel(int(channel))
+                        print(f"Sending invite request notification to {channel.name}") # debug
+                        msg = await channel.send(embed=embed)
+
+                        # add message to the tracked_invite_requests list
+                        self.track_invite_requests(guild_id=self.guild_id,
+                                                   request_id=request['request_id'],
+                                                   message_id=msg.id)
+
+                        # Pass message.id to the view
+                        view = InviteRequestViewer(guild_id=self.guild_id,
+                                                   vrc_handler=self.vrc_handler,
+                                                   user_id=user_id,
+                                                   user_name=profile_data['Display Name'],
+                                                   moderator_name='blank1234',
+                                                   message_id=message.id)
+
+                        # Edit the message with the view
+                        await message.edit(view=view)
         else:
             logger.warning("Bot is not logged in, stopping the task.")
             self.my_background_task.stop()  # Stop the task if the bot is not logged in
@@ -223,7 +263,9 @@ class VrchatApi(commands.Cog):
                                      app_commands.Choice(name="Setup Invite Handler", value="setup_invite_handler"),
                                      app_commands.Choice(name="Log In", value="login"),
                                      app_commands.Choice(name="Log Out", value="logout"),
-                                     app_commands.Choice(name="Get Invite Requests", value="get_invite_requests")])
+                                     app_commands.Choice(name="Get Invite Requests", value="get_invite_requests"),
+                                     app_commands.Choice(name="Start listener", value="start_background_task"),
+                                     app_commands.Choice(name="Stop listener", value="stop_background_task")])
     async def vrc(self, interaction: discord.Interaction, operation: app_commands.Choice[str]):
         """Handle VRChat API operations."""
         match operation.value:
@@ -248,13 +290,14 @@ class VrchatApi(commands.Cog):
                 await self.vrc_bot_login(interaction)
             case "logout":
                 if self.vrc_handler:
-                    await self.vrc_handler.logout()
                     self.vrc_handler = None
                     await interaction.response.send_message("Logged out successfully.", ephemeral=True)  # noqa
-                    self.my_background_task.stop()  # Stop the task if the bot is logged out
-                    logger.info(f"User {interaction.user} logged out the VRC Bot")
+                    if self.my_background_task.is_running():
+                        self.my_background_task.stop()  # Stop the task if the bot is logged out
+                    logger.info(f"User {interaction.user} logged out the VRC Bot & stopped the background task.")
                 else:
                     await interaction.response.send_message("You are already logged out.", ephemeral=True)  # noqa
+
             case "get_invite_requests":
                 if self.vrc_handler:
                     await interaction.response.send_message("Fetching invite requests...", ephemeral=True)  # noqa
@@ -301,6 +344,21 @@ class VrchatApi(commands.Cog):
                 else:
                     await interaction.response.send_message("You need to log in first.", ephemeral=True)  # noqa
 
+            case 'start_background_task':
+                # Start the background task
+                if not self.my_background_task.is_running():
+                    self.my_background_task.start()
+                    await interaction.response.send_message("Started the background task.") # noqa
+                else:
+                    await interaction.response.send_message("The background task is already running.") # noqa
+
+            case 'stop_background_task':
+                if self.my_background_task.is_running():
+                    self.my_background_task.stop()
+                    await interaction.response.send_message("Stopped the background task.") # noqa
+                else:
+                    await interaction.response.send_message("The background task is not running.") # noqa
+
             case _:
                 await interaction.response.send_message("Invalid operation. Please choose from the options provided.",  # noqa
                                                         ephemeral=True)
@@ -309,16 +367,13 @@ class VrchatApi(commands.Cog):
         """Login the bot using VRChat API."""
         try:
             guild_id = interaction.guild_id
+            self.guild_id = guild_id
             # Initialize the VrchatApiHandler
             self.vrc_handler = VrchatApiHandler(guild_id)
 
             # If successful, respond to the interaction
             await interaction.response.send_message(f"Logged in as {self.vrc_handler.current_user.display_name}") # noqa
             logger.info(f"VRChat API logged in for guild {guild_id}")
-
-            # Start the background task after successful login
-            if not self.my_background_task.is_running():
-                self.my_background_task.start()
 
         except Exception as e:
             # If any error occurs during the login, notify the user
@@ -361,9 +416,6 @@ class VrchatApi(commands.Cog):
                 logger.info(f"Updated VRC temporary file {temp_file}")
             return True
         # TODO: Add a method to edit messages if they have been responded trough VRChat instead of discord
-
-
-
 
 
 
@@ -431,6 +483,7 @@ class InviteRequestViewer(discord.ui.View):
         else:
             await interaction.followup.send(content=f"Failed to reject {self.user_name}.\n"
                                                     f"Please check the logs for more details.")
+
 
 # set up the cog
 async def setup(bot):
