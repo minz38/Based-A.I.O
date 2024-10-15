@@ -4,7 +4,6 @@ import datetime
 import discord
 from discord.ext import commands
 from discord import app_commands, Interaction
-from dateutil.relativedelta import relativedelta
 from logger import LoggerManager
 
 # Initialize the logger
@@ -31,7 +30,7 @@ class Inactivity(commands.Cog):
             os.makedirs('activity')
             logger.debug("Created activity folder")
 
-        # Load data for each guild | also creates null entries for each user if they don't exist'
+        # Load data for each guild | also creates null entries for each user if they don't exist
         for guild in bot.guilds:
             self.initialize_guild_activity(guild.id)
 
@@ -201,113 +200,77 @@ class Inactivity(commands.Cog):
         with open(file_path, 'w') as f:
             json.dump(data, f, indent=4)
 
-    @app_commands.command(name="activity", description="Check user's activity status.")
+    @app_commands.command(name="inactivity_check", description="list inactive users.")
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.default_permissions(manage_guild=True)
-    @app_commands.choices(inactive_for=[
-        app_commands.Choice(name="1 month", value=1),
-        app_commands.Choice(name="2 months", value=2),
-        app_commands.Choice(name="3 months", value=3),
-        app_commands.Choice(name="6 months", value=6),
-        app_commands.Choice(name="12 months", value=12)
-    ])
-    async def activity_check(self, interaction: discord.Interaction, inactive_for: int = None):
-        guild_id = interaction.guild.id
-        data = self.load_activity_data(guild_id)
+    @app_commands.choices(days=[app_commands.Choice(name="30 days", value=30),
+                                app_commands.Choice(name="60 days", value=60),
+                                app_commands.Choice(name="90 days", value=90)])
+    async def inactivity_check(self, interaction: discord.Interaction, days: int = 30):
+        channel_counter = 0
+        message_counter = 0
+        past_month = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+        last_message_list = {}
 
-        current_date = datetime.datetime.now()
-        active_users = []
-        inactive_users = []
+        # Defer the interaction to prevent timeout
+        await interaction.response.defer(thinking=True)  # noqa
 
-        # Define the start date based on the provided inactive_for value
-        start_date = current_date - relativedelta(months=inactive_for) if inactive_for else None
+        try:
+            for channel in interaction.guild.text_channels:  # Iterate only over text channels
+                channel_counter += 1
+                # Check permissions before fetching the history
+                if not channel.permissions_for(interaction.guild.me).read_message_history:
+                    logger.warning(f"Bot lacks 'Read Message History' in {channel.name}")
+                    continue
 
-        for user_id, activity_data in data.items():
-            user = interaction.guild.get_member(int(user_id))
+                # Fetch channel history after the specified date
+                async for message in channel.history(after=past_month):
 
-            if user is None or user.bot:
-                continue  # Skip bots and members not in the guild
-
-            last_activity_date = None
-            total_messages = 0
-            total_voice_time_seconds = 0
-
-            # Track whether the user has been active in the past X months
-            active_in_period = False
-
-            # Loop through each year and month to collect activity data
-            for year, year_data in activity_data["year"].items():
-                for month, month_data in year_data["month"].items():
-                    last_activity = month_data.get("last_activity")
-
-                    # Properly construct the activity date from month and year
-                    try:
-                        activity_date = datetime.datetime.strptime(last_activity, '%d.%m.%Y')
-                    except (ValueError, TypeError):
+                    # Skip messages from bots
+                    if message.author.bot:
                         continue
+                    message_counter += 1
+                    # Log each message processed for debugging purposes
+                    logger.debug(f"Message from {message.author} at {message.created_at} in {channel.name}")
 
-                    # Ensure that we're only counting activity in the past X months if 'inactive_for' is provided
-                    if not inactive_for or activity_date >= start_date:
-                        total_messages += month_data.get("message_count", 0)
-                        total_voice_time_seconds += month_data.get("voice_channel_time", 0)
+                    # Track the most recent message timestamp for each user
+                    if message.author.id not in last_message_list:
+                        last_message_list[message.author.id] = message.created_at
+                    else:
+                        if message.created_at > last_message_list[message.author.id]:
+                            last_message_list[message.author.id] = message.created_at
 
-                        # Track the most recent activity date within the time period
-                        if not last_activity_date or activity_date > last_activity_date:
-                            last_activity_date = activity_date
-                            active_in_period = True
+        except Exception as e:
+            logger.error(f"Failed to retrieve channel history during inactivity_check: {e}")
+            await interaction.response.send_message(content="Failed to retrieve channel history.")  # noqa
+            return
 
-            total_voice_time_hours = total_voice_time_seconds / 3600
+        # Find users who haven't sent a message in the last {days} days
+        inactive_users = []
+        for member in interaction.guild.members:
+            if member.bot:
+                continue
+            last_message_time = last_message_list.get(member.id)
+            if not last_message_time or last_message_time < past_month:
+                inactive_users.append(member)
 
-            # Check if the user was active in the selected period
-            if active_in_period:
-                active_users.append((user.display_name, last_activity_date, total_messages, total_voice_time_hours))
-            else:
-                # Inactive users: record the last_activity_date or show "Never Active"
-                if last_activity_date:
-                    inactive_users.append(
-                        (user.display_name, last_activity_date, total_messages, total_voice_time_hours))
-                else:
-                    inactive_users.append((user.display_name, None, total_messages, total_voice_time_hours))
-
-        # Sort active users by last activity date (most recent first)
-        active_users.sort(key=lambda x: x[1], reverse=True)
-
-        # Sort inactive users by name (or leave unsorted if preferred)
-        inactive_users.sort(key=lambda x: x[0])
-
-        # Prepare the embed for results
-        embed = discord.Embed(
-            title=f"User Activity Check (Last {inactive_for} months)" if inactive_for else
-            "User Activity Check (All Time)",
-            description=f"Showing active and inactive users for the selected period",
-            color=discord.Color.blue()
-        )
-
-        # Add top 10 active users
-        if active_users:
-            active_list = "\n".join([
-                f"**{name}** - Last Active: {date.strftime('%d.%m.%Y')} - Msg: {messages}, Voice: {voice_time:.2f} hrs"
-                for name, date, messages, voice_time in active_users[:10]
-            ])
-            embed.add_field(name="Top 10 Active Users", value=active_list, inline=False)
-        else:
-            embed.add_field(name="Top 10 Active Users", value="No active users found", inline=False)
-
-        # Add top 10 inactive users
         if inactive_users:
-            inactive_list = "\n".join([
-                f"**{name}** - Last Active: {'Never Active' if date is None else date.strftime('%d.%m.%Y')} - "
-                f"Msg: {messages}, Voice: {voice_time:.2f} hrs"
-                for name, date, messages, voice_time in inactive_users[:10]
-            ])
-            print(inactive_list)  # Debugging output
-            embed.add_field(name="Top 10 Inactive Users", value=inactive_list, inline=False)
-        else:
-            embed.add_field(name="Top 10 Inactive Users", value="No inactive users found", inline=False)
+            # user_list = "\n".join([member.display_name for member in inactive_users])
+            mention_member_list = "\n".join([f"<@{member.id}>" for member in inactive_users])
+            embed = discord.Embed(title=f"List of Inactive Users in the last {days} days",
+                                  description=
+                                  f"""
+                                  Processed **{message_counter}** in **{channel_counter}** channels and found
+                                  **{len(inactive_users)}** users who haven't sent a message in the last **{days}** 
+                                  days. 
+                                  """)
+            embed.add_field(name="Inactive Users", value=mention_member_list, inline=False)
+            embed.set_footer(text=f"created by {interaction.user.name}")
+            await interaction.followup.send(embed=embed)
 
-        # Send the embed message
-        await interaction.response.send_message(embed=embed)  # noqa
+        else:
+            await interaction.followup.send(content="No inactive users found in the last 30 days.")  # noqa
 
 
 # Add the COG to the bot
