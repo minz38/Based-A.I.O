@@ -9,7 +9,7 @@ init(autoreset=True)
 class LoggerManager:
     _loggers = {}  # Dictionary to store loggers by name
 
-    def __init__(self, name=None, level="INFO", log_file="logs/main.log"):
+    def __init__(self, name: str = None, level: str = "INFO", log_file: str = "logs/main.log") -> None:
         """
         Initializes a LoggerManager instance, creating or retrieving a logger.
 
@@ -26,7 +26,7 @@ class LoggerManager:
         # Create or retrieve the logger
         self.logger = self._get_logger(name, level, log_file)
 
-    def _get_logger(self, name, level, log_file):
+    def _get_logger(self, name: str, level: str, log_file: str) -> logging.Logger:
         """
         Retrieves or creates a logger with the given name.
 
@@ -87,7 +87,7 @@ class LoggerManager:
 
         return logger
 
-    def get_logger(self):
+    def get_logger(self) -> logging.Logger:
         """
         Returns the logger instance for this LoggerManager.
 
@@ -102,10 +102,10 @@ class ColoredFormatter(logging.Formatter):
     Custom formatter to add colors to the log output in the console based on log levels.
     """
 
-    def format(self, record):
+    def format(self, record) -> str:
         # Define color codes for each log level
         if record.levelno == logging.INFO:
-            record.msg = Fore.WHITE + record.msg + Style.RESET_ALL
+            record.msg = Fore.LIGHTWHITE_EX + record.msg + Style.RESET_ALL
         elif record.levelno == logging.WARNING:
             record.msg = Fore.YELLOW + record.msg + Style.RESET_ALL
         elif record.levelno == logging.ERROR:
