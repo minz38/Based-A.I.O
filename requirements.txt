@@ -3,5 +3,5 @@ discord.py~=2.4.0
 pyotp~=2.9.0
 vrchatapi~=1.18.4
 cryptography~=43.0.1
-yt-dlp~=2024.9.27
+yt-dlp~=2024.10.16.232911.dev0
 ffmpeg~=1.4
