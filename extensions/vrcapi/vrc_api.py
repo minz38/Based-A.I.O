@@ -68,6 +68,23 @@ class VrchatApiHandler:
             self.group_api = GroupsApi(self.api_client)
             self.user_api = UsersApi(self.api_client)
 
+    def logout(self) -> bool:
+        """
+        Logout the current VRChat session by calling the logout endpoint.
+        """
+        try:
+            if self.auth_api:
+                # Call the logout endpoint
+                api_response = self.auth_api.logout()
+                logger.info(f"Logged out from VRChat for guild {self.guild}. Response: {api_response}")
+                return True
+            else:
+                logger.error("No active session to log out from.")
+                return False
+        except vrchatapi.ApiException as e:
+            logger.error(f"Exception when calling AuthenticationApi->logout: {e}")
+            return False
+
     def generate_totp_code(self):
         totp = pyotp.TOTP(self.vrc_totp)
         return totp.now()
