@@ -203,7 +203,7 @@ class VrchatApi(commands.Cog):
                                         inline=False)
                         channel = self.vrc_handler.moderator_channel_id
                         channel = self.bot.get_channel(int(channel))
-                        print(f"Sending invite request notification to {channel.name}") # debug
+                        # print(f"Sending invite request notification to {channel.name}") # debug
                         msg = await channel.send(embed=embed)
 
                         # add message to the tracked_invite_requests list
@@ -240,7 +240,7 @@ class VrchatApi(commands.Cog):
     @app_commands.command(name="setup_vrchat", description="Setup VRChat API for this Guild")
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
-    @discord.app_commands.default_permissions(manage_guild=True)
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setup_vrchat(self, interaction: discord.Interaction):
         """Command to set up the VRChat API by requesting user credentials."""
         guild_id = interaction.guild_id
@@ -266,7 +266,7 @@ class VrchatApi(commands.Cog):
     @app_commands.command(name="vrc", description="Perform Various VRChat API operations")
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @app_commands.allowed_installs(guilds=True, users=False)
-    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(operation=[app_commands.Choice(name="Check Login Status", value="check_login_status"),
                                      app_commands.Choice(name="Setup Invite Handler", value="setup_invite_handler"),
                                      app_commands.Choice(name="Log In", value="login"),
@@ -443,6 +443,7 @@ class InviteRequestViewer(discord.ui.View):
         self.message_id = message_id
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
@@ -461,6 +462,7 @@ class InviteRequestViewer(discord.ui.View):
                                                     f"Please check the logs for more details.")
 
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
@@ -479,6 +481,7 @@ class InviteRequestViewer(discord.ui.View):
                                                     f"Please check the logs for more details.")
 
     @discord.ui.button(label="Block & Reject", style=discord.ButtonStyle.grey)
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def block_and_reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
