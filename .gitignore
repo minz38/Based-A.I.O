@@ -3,3 +3,9 @@
 /configs/
 /X Note Drops/
 /temp/
+/extensions/__init__.py
+/dependencies/__init__.py
+/dependencies/ffmpeg.exe
+/dependencies/ffprobe.exe
+/configs/guilds/
+/.venv/
