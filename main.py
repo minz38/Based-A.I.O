@@ -87,8 +87,8 @@ def bot_config_check() -> Dict[str, Any]:
             updated_config = extension_check(bot_config_data)
             return updated_config
 
-    except Exception as _:
-        logger.error(f"Error loading bot configuration: {_}")
+    except Exception as err:
+        logger.error(f"Error loading bot configuration: {err}")
         exit()
 
 
@@ -139,7 +139,7 @@ def extension_check(bot_config_file: Dict[str, Any]) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     # Load, check, and update bot configuration
-    bot_config = bot_config_check()
+    bot_config: Dict[str, Any] = bot_config_check()
 
     # Extract bot token and start the bot
     token = bot_config["bot_token"]
