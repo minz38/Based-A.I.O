@@ -52,11 +52,10 @@ def create_bot_config() -> None:
 
 def bot_config_check() -> Dict[str, Any]:
     """
-    Ensure the bot configuration file exists and loads it. Updates with extensions.
-
     This function checks if the bot configuration file exists in the 'configs' directory.
     If the file does not exist, it creates a new one using the `create_bot_config` function.
-    Then, it loads the bot configuration file and updates it with available extensions using the `extension_check` function.
+    Then, it loads the bot configuration file and updates it with available extension files using the
+    `extension_check` function.
     Finally, it returns the updated bot configuration.
 
     Parameters:
@@ -88,8 +87,8 @@ def bot_config_check() -> Dict[str, Any]:
             updated_config = extension_check(bot_config_data)
             return updated_config
 
-    except Exception as e:
-        logger.error(f"Error loading bot configuration: {e}")
+    except Exception as _:
+        logger.error(f"Error loading bot configuration: {_}")
         exit()
 
 
