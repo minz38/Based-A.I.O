@@ -6,7 +6,8 @@ from discord import app_commands
 from discord.ext import commands
 from logger import LoggerManager
 from datetime import datetime
-from dependencies.youtube_handler import download_music, download_video, delete_temp_files
+from typing import Dict, Any
+from dependencies.youtube_handler import download_music, delete_temp_files
 
 
 # initialize logger
@@ -14,18 +15,18 @@ logger = LoggerManager(name="Bot", level="INFO", log_file="logs/bot.log").get_lo
 
 # load the bot configuration
 with open("configs/bot_config.json", "r") as file:
-    bot_config = json.load(file)
+    bot_config: Dict[str, Any] = json.load(file)
     logger.debug(f"Loaded bot configuration: {bot_config}")
 
 # Load the bot Configuration
-intents = discord.Intents.all()
-bot = commands.Bot(command_prefix=bot_config["prefix"],
-                   intents=intents,
-                   help_command=None)
+intents: discord.Intents = discord.Intents.all()
+bot: commands.Bot = commands.Bot(command_prefix=bot_config["prefix"],
+                                 intents=intents,
+                                 help_command=None)
 
 
 @bot.event
-async def on_ready():
+async def on_ready() -> None:
     logger.info(f"Logged in as {bot.user.name} ({bot.user.id})")
     logger.info(f"Bot is connected to {len(bot.guilds)} guilds")
     for guild in bot.guilds:
@@ -36,12 +37,12 @@ async def on_ready():
     try:
         await bot.tree.sync()
         logger.info("Synced bot.tree for all guilds.")
-    except Exception as e:
-        logger.error(f"Error syncing bot.tree: {e}")
+    except Exception as err:
+        logger.error(f"Error syncing bot.tree: {err}")
 
 
 # Create a Config file for each guild the bot is in
-async def create_guild_config():
+async def create_guild_config() -> None:
     # Create the guilds directory if it doesn't exist already
     if not os.path.exists(f"configs/guilds"):
         logger.warning("Guilds directory not found. Creating a new folder...")
@@ -49,7 +50,6 @@ async def create_guild_config():
         logger.debug(f"Created guilds directory.")
 
     for guild in bot.guilds:
-        guild_config = None
         # If the guild config exists, load it
         if os.path.exists(f"configs/guilds/{guild.id}.json"):
             logger.info(f"Loading existing config for guild: {guild.name} ({guild.id})")
@@ -60,8 +60,7 @@ async def create_guild_config():
             logger.info(f"Creating new config for guild: {guild.name} ({guild.id})")
             guild_config = {
                 "day_added": datetime.now().strftime("%d-%m-%Y"),
-                "active_extensions": [],
-                "sync_commands": True
+                "active_extensions": []
             }
 
         # Save the guild configuration (whether new or loaded)
