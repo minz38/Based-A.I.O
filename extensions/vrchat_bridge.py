@@ -1,26 +1,27 @@
+import os
+import json
+import shutil
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands, message
-import json
-import os
 from logger import LoggerManager
-import dependencies.encryption_handler as encryption_handler
 from extensions.vrcapi.vrc_api import VrchatApiHandler
-import shutil
+import dependencies.encryption_handler as encryption_handler
+
 
 # Initialize the logger
 logger = LoggerManager(name="VRC-API", level="INFO", log_file="logs/vrc-api.log").get_logger()
 
 # Define the path for guild configuration
-CONFIG_PATH = "configs/guilds"
+CONFIG_PATH: str = "configs/guilds"
 
 # Load the encryption key from the config
-key = encryption_handler.load_key_from_config()
+key: bytes = encryption_handler.load_key_from_config()
 
-json_keys = ["vrc_username", "vrc_password", "vrc_totp", "vrc_group_id", "moderator_channel_id",
-             "moderator_role", "log_channel_id"]
+json_keys: list[str] = ["vrc_username", "vrc_password", "vrc_totp", "vrc_group_id", "moderator_channel_id",
+                        "moderator_role", "log_channel_id"]
 
-TEMP_VRC_PATH = "temp/vrc"
+TEMP_VRC_PATH: str = "temp/vrc"
 
 
 # Create a Modal class for the form
@@ -34,10 +35,10 @@ class VrchatCredentialsModal(discord.ui.Modal, title="Enter VRChat Credentials")
         super().__init__(*args, **kwargs)
         self.guild_id = guild_id
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_submit(self, interaction: discord.Interaction) -> None:
         # Encrypt the password and TOTP secret using the encryption handler
-        encrypted_password = encryption_handler.encrypt(self.vrc_password.value, key)
-        encrypted_totp = encryption_handler.encrypt(self.vrc_totp.value, key)
+        encrypted_password: str = encryption_handler.encrypt(self.vrc_password.value, key)
+        encrypted_totp: str = encryption_handler.encrypt(self.vrc_totp.value, key)
 
         # Create the credentials dictionary with the encrypted values
         credentials = {
@@ -215,11 +216,11 @@ class VrchatApi(commands.Cog):
                                                    vrc_handler=self.vrc_handler,
                                                    user_id=user_id,
                                                    user_name=profile_data['Display Name'],
-                                                   moderator_name='blank1234',
-                                                   message_id=message.id)
+                                                   moderator_name=None,
+                                                   message_id=msg.id)
 
                         # Edit the message with the view
-                        await message.edit(view=view)
+                        await msg.edit(view=view)
         else:
             logger.warning("Bot is not logged in, stopping the task.")
             self.my_background_task.stop()  # Stop the task if the bot is not logged in
@@ -227,7 +228,14 @@ class VrchatApi(commands.Cog):
     @my_background_task.before_loop
     async def before_my_background_task(self):
         await self.bot.wait_until_ready()
-        logger.info("Bot is logged in, and is now checking for invites every 5 minutes.")
+        logger.info("Bot is logged in, and is now checking for invites every 60 minutes.")
+
+    @my_background_task.after_loop
+    async def after_my_background_task(self):
+        if self.my_background_task.is_being_cancelled():
+            logger.info("Background task has been successfully stopped.")
+        else:
+            logger.info("Background task has finished normally.")
 
     @app_commands.command(name="setup_vrchat", description="Setup VRChat API for this Guild")
     @app_commands.allowed_installs(guilds=True, users=False)
@@ -290,11 +298,15 @@ class VrchatApi(commands.Cog):
                 await self.vrc_bot_login(interaction)
             case "logout":
                 if self.vrc_handler:
-                    self.vrc_handler = None
-                    await interaction.response.send_message("Logged out successfully.", ephemeral=True)  # noqa
-                    if self.my_background_task.is_running():
-                        self.my_background_task.stop()  # Stop the task if the bot is logged out
-                    logger.info(f"User {interaction.user} logged out the VRC Bot & stopped the background task.")
+                    success = self.vrc_handler.logout()
+                    if success:
+                        await interaction.response.send_message("Logged out successfully.", ephemeral=True)  # noqa
+                        if self.my_background_task.is_running():
+                            self.my_background_task.stop()  # Stop the task if the bot is logged out
+                        logger.info(f"User {interaction.user} logged out the VRC Bot & stopped the background task.")
+                    else:
+                        await interaction.response.send_message( # noqa
+                            "Failed to log out. No active session or an error occurred.", ephemeral=True)
                 else:
                     await interaction.response.send_message("You are already logged out.", ephemeral=True)  # noqa
 
@@ -310,7 +322,7 @@ class VrchatApi(commands.Cog):
                             if self.track_invite_requests(guild_id=interaction.guild_id,
                                                           request_id=request['request_id'],
                                                           message_id=None):
-                                user_id = request['requester_id']
+                                user_id = request['requester_id']  # noqa
                                 profile_data = self.vrc_handler.get_user_profile(user_id)
                                 # print(profile_data)
                                 embed = discord.Embed(color=discord.Color.blue())
@@ -322,13 +334,13 @@ class VrchatApi(commands.Cog):
                                                 value=f"[{profile_data['Display Name']}'s "
                                                       f"Profile](<https://vrchat.com/home/user/{user_id}>)",
                                                 inline=False)
-                                guild_id = interaction.guild_id
+                                guild_id: int = interaction.guild_id
 
-                                message = await interaction.followup.send(embed=embed, ephemeral=False)
+                                msg: discord.Message = await interaction.followup.send(embed=embed, ephemeral=False)
                                 # add message to the tracked_invite_requests list
                                 self.track_invite_requests(guild_id=interaction.guild_id,
                                                            request_id=request['request_id'],
-                                                           message_id=message.id)
+                                                           message_id=msg.id)
 
                                 # Pass message.id to the view
                                 view = InviteRequestViewer(guild_id=guild_id,
@@ -336,10 +348,10 @@ class VrchatApi(commands.Cog):
                                                            user_id=user_id,
                                                            user_name=profile_data['Display Name'],
                                                            moderator_name=interaction.user.name,
-                                                           message_id=message.id)
+                                                           message_id=msg.id)
 
                                 # Edit the message with the view
-                                await message.edit(view=view)
+                                await msg.edit(view=view)
 
                 else:
                     await interaction.response.send_message("You need to log in first.", ephemeral=True)  # noqa
@@ -348,16 +360,18 @@ class VrchatApi(commands.Cog):
                 # Start the background task
                 if not self.my_background_task.is_running():
                     self.my_background_task.start()
-                    await interaction.response.send_message("Started the background task.") # noqa
+                    await interaction.response.send_message("Started the background task.")  # noqa
                 else:
-                    await interaction.response.send_message("The background task is already running.") # noqa
+                    await interaction.response.send_message("The background task is already running.")  # noqa
 
             case 'stop_background_task':
+                # Stop the background task
                 if self.my_background_task.is_running():
+                    logger.info("Attempting to stop the background task...")
                     self.my_background_task.stop()
-                    await interaction.response.send_message("Stopped the background task.") # noqa
+                    await interaction.response.send_message("Stopped the background task.")  # noqa
                 else:
-                    await interaction.response.send_message("The background task is not running.") # noqa
+                    await interaction.response.send_message("The background task is not running.")  # noqa
 
             case _:
                 await interaction.response.send_message("Invalid operation. Please choose from the options provided.",  # noqa
@@ -418,7 +432,6 @@ class VrchatApi(commands.Cog):
         # TODO: Add a method to edit messages if they have been responded trough VRChat instead of discord
 
 
-
 class InviteRequestViewer(discord.ui.View):
     def __init__(self, guild_id: int, vrc_handler, user_id, user_name, moderator_name, message_id):
         super().__init__(timeout=None)
@@ -433,15 +446,15 @@ class InviteRequestViewer(discord.ui.View):
     async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
-                                           moderator_name=self.moderator_name,
+                                           moderator_name=interaction.user.name,
                                            action="Accept"):
 
-            message = await interaction.channel.fetch_message(self.message_id)
-            embed = message.embeds[0]
+            msg = await interaction.channel.fetch_message(self.message_id)
+            embed = msg.embeds[0]
             embed.colour = discord.Color.green()
-            embed.set_footer(text=f"Accepted by {self.moderator_name}")
-            accept_message = f"The user **{self.user_name}** has been accepted by **{self.moderator_name}**"
-            await message.edit(content=accept_message, view=None, embed=embed)
+            embed.set_footer(text=f"Accepted by {interaction.user.name}")
+            accept_message = f"The user **{self.user_name}** has been accepted by **{interaction.user.name}**"
+            await msg.edit(content=accept_message, view=None, embed=embed)
 
         else:
             await interaction.followup.send(content=f"Failed to accept {self.user_name}.\n"
@@ -451,16 +464,15 @@ class InviteRequestViewer(discord.ui.View):
     async def reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
-                                           moderator_name=self.moderator_name,
+                                           moderator_name=interaction.user.name,
                                            action="Reject"):
 
-
-            message = await interaction.channel.fetch_message(self.message_id)  # noqa
-            embed = message.embeds[0]
+            msg = await interaction.channel.fetch_message(self.message_id) # noqa
+            embed = msg.embeds[0]
             embed.colour = discord.Color.red()
             embed.set_footer(text=f"Rejected by {self.moderator_name}")
-            accept_message = f"The user **{self.user_name}** has been rejected by **{self.moderator_name}**"
-            await message.edit(content=accept_message, view=None, embed=embed)
+            reject_message = f"The user **{self.user_name}** has been rejected by **{self.moderator_name}**"
+            await msg.edit(content=reject_message, view=None, embed=embed)
 
         else:
             await interaction.followup.send(content=f"Failed to reject {self.user_name}.\n"
@@ -470,15 +482,15 @@ class InviteRequestViewer(discord.ui.View):
     async def block_and_reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
-                                           moderator_name=self.moderator_name,
+                                           moderator_name=interaction.user.name,
                                            action="Block"):
 
-            message = await interaction.channel.fetch_message(self.message_id)  # noqa
-            embed = message.embeds[0]
+            msg = await interaction.channel.fetch_message(self.message_id)  # noqa
+            embed = msg.embeds[0]
             embed.colour = discord.Color.red()
-            embed.set_footer(text=f"Rejected & Blocked from further requests by {self.moderator_name}")
-            accept_message = f"The user **{self.user_name}** has been rejected by **{self.moderator_name}**"
-            await message.edit(content=accept_message, view=None, embed=embed)
+            embed.set_footer(text=f"Rejected & Blocked from further requests by {interaction.user.name}")
+            reject_message: str = f"The user **{self.user_name}** has been rejected by **{interaction.user.name}**"
+            await msg.edit(content=reject_message, view=None, embed=embed)
 
         else:
             await interaction.followup.send(content=f"Failed to reject {self.user_name}.\n"
