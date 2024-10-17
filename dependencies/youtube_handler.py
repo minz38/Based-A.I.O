@@ -9,6 +9,19 @@ path_to_ffmpeg: str = 'dependencies/ffmpeg.exe'
 
 
 async def download_music(video_url: str) -> str | bool:
+    """
+    Downloads music from a given YouTube video URL.
+
+    Parameters:
+    video_url (str): The URL of the YouTube video from which to download music.
+
+    Returns:
+    str | bool: The path to the downloaded music file if successful, or False if an error occurred.
+
+    The function uses the yt_dlp library to download the audio from the specified YouTube video URL.
+    The downloaded audio is then converted to MP3 format using the FFmpeg library.
+    The function logs the progress and any errors encountered during the download process.
+    """
     logger.info(f"Downloading music from {video_url}")
     music_output_path: str = 'temp/youtube/music'
 
