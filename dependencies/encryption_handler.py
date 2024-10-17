@@ -1,19 +1,18 @@
 from cryptography.fernet import Fernet
 import base64
-import os
 import json
 
 # Path to the bot configuration file
-BOT_CONFIG_PATH = 'configs/bot_config.json'
+BOT_CONFIG_PATH: str = 'configs/bot_config.json'
 
 
 # Generate or load the encryption key
-def generate_key():
+def generate_key() -> bytes:
     """Generates a new encryption key."""
     return Fernet.generate_key()
 
 
-def load_key_from_config():
+def load_key_from_config() -> bytes:
     """
     Loads the encryption key from the bot configuration JSON file.
     If the key doesn't exist, it generates a new one and saves it.
@@ -31,7 +30,7 @@ def load_key_from_config():
             json.dump(config, config_file, indent=4)
     else:
         # Load the existing key from the config (decode it from base64)
-        key = base64.urlsafe_b64decode(config['encryption_key'].encode())
+        key: bytes = base64.urlsafe_b64decode(config['encryption_key'].encode())
 
     return key
 
@@ -52,11 +51,3 @@ def decrypt(encrypted_data: str) -> str:
     decrypted_data = fernet.decrypt(
         base64.urlsafe_b64decode(encrypted_data.encode()))  # Decode the string before decrypting
     return decrypted_data.decode()  # Return the decrypted string
-
-
-# def decrypt_test(encrypted_data: str) -> str:
-#     key = load_key_from_config()
-#     fernet = Fernet(key)
-#     decrypted_data = fernet.decrypt(
-#         base64.urlsafe_b64decode(encrypted_data.encode()))  # Decode the string before decrypting
-#     return decrypted_data.decode()  # Return the decrypted string
