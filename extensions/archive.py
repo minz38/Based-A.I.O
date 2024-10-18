@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import json
+import re
 
 
 class ArchiveCog(commands.Cog):
@@ -10,7 +12,7 @@ class ArchiveCog(commands.Cog):
     @app_commands.command(name="archive", description="Archive the current channel")
     async def archive(self, interaction: discord.Interaction, target_archive_category_id: str):
         # Defer the response to give the bot time to process
-        await interaction.response.defer(ephemeral=True)  # noqa
+        await interaction.response.defer(ephemeral=True)
 
         # Get the current channel
         channel = interaction.channel
@@ -42,6 +44,9 @@ class ArchiveCog(commands.Cog):
             permissions = channel.permissions_for(member)
             if permissions.read_messages:
                 members_with_access.append(member)
+
+        # Save the previous category
+        previous_category = channel.category
 
         # Remove role permissions and replace with per-user permissions
         for target in list(channel.overwrites):
@@ -96,19 +101,42 @@ class ArchiveCog(commands.Cog):
         ]
         new_members_text = ", ".join(member.name for member in current_members_with_access)
 
+        # Prepare data for unarchiving
+        previous_permission_data = []
+        for target, overwrite in previous_overwrites.items():
+            target_data = {
+                'id': target.id,
+                'type': 'role' if isinstance(target, discord.Role) else 'member',
+                'allow': overwrite.pair()[0].value,
+                'deny': overwrite.pair()[1].value
+            }
+            previous_permission_data.append(target_data)
+
+        # Include previous category info
+        previous_category_data = {
+            'id': previous_category.id if previous_category else None,
+            'name': previous_category.name if previous_category else None
+        }
+
+        # Create a JSON object
+        archive_data = {
+            'previous_permissions': previous_permission_data,
+            'previous_category': previous_category_data
+        }
+
         # Send the archive message in the channel
         archive_message = (
             "This channel has been archived:\n\n"
             f"**Previous permission settings:**\n{previous_permissions_text}\n\n"
             f"**List of previous members in this channel:**\n{previous_members_text}\n\n"
             f"**New role permission settings:**\n{new_permissions_text}\n\n"
-            f"**List of people who still have access:**\n{new_members_text}"
+            f"**List of people who still have access:**\n{new_members_text}\n\n"
+            f"```json\n{json.dumps(archive_data)}\n```"
         )
         await channel.send(archive_message)
 
         # Inform the user that the channel has been archived
         await interaction.followup.send("Channel has been archived.", ephemeral=True)
-
 
 async def setup(bot):
     await bot.add_cog(ArchiveCog(bot))
