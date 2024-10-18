@@ -10,7 +10,7 @@ class ArchiveCog(commands.Cog):
     @app_commands.command(name="archive", description="Archive the current channel")
     async def archive(self, interaction: discord.Interaction, target_archive_category_id: str):
         # Defer the response to give the bot time to process
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)  # noqa
 
         # Get the current channel
         channel = interaction.channel
@@ -64,10 +64,10 @@ class ArchiveCog(commands.Cog):
         await channel.edit(category=archive_category)
 
         # Prepare messages detailing permission changes
-        def format_overwrite(overwrite):
-            perm_dict = overwrite.to_dict()
-            allow = [perm for perm, value in perm_dict.items() if value == True]
-            deny = [perm for perm, value in perm_dict.items() if value == False]
+        def format_overwrite(overwrites):
+            allow_perms, deny_perms = overwrites.pair()
+            allow = [perm for perm in discord.Permissions.VALID_FLAGS if getattr(allow_perms, perm)]
+            deny = [perm for perm in discord.Permissions.VALID_FLAGS if getattr(deny_perms, perm)]
             result = ''
             if allow:
                 result += f"Allow: {', '.join(allow)}"
