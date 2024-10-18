@@ -37,15 +37,19 @@ class ArchiveCog(commands.Cog):
             print(f"{target}: {overwrite}")
 
         # Get members who can currently see the channel
-        members_with_access = [
-            member for member in channel.guild.members
-            if channel.permissions_for(member).read_messages
-        ]
+        members_with_access = []
+        for member in channel.guild.members:
+            permissions = channel.permissions_for(member)
+            if permissions.read_messages:
+                members_with_access.append(member)
 
         # Remove role permissions and replace with per-user permissions
         for target in list(channel.overwrites):
             if isinstance(target, discord.Role):
                 await channel.set_permissions(target, overwrite=None)
+
+        # Explicitly deny @everyone from seeing the channel
+        await channel.set_permissions(channel.guild.default_role, read_messages=False)
 
         # Grant read and send permissions to users who had access
         for member in members_with_access:
@@ -60,16 +64,32 @@ class ArchiveCog(commands.Cog):
         await channel.edit(category=archive_category)
 
         # Prepare messages detailing permission changes
+        def format_overwrite(overwrite):
+            perm_dict = overwrite.to_dict()
+            allow = [perm for perm, value in perm_dict.items() if value == True]
+            deny = [perm for perm, value in perm_dict.items() if value == False]
+            result = ''
+            if allow:
+                result += f"Allow: {', '.join(allow)}"
+            if deny:
+                if result:
+                    result += "; "
+                result += f"Deny: {', '.join(deny)}"
+            return result or "No permissions set"
+
         previous_permissions_text = "\n".join(
-            f"{target}: {overwrite}" for target, overwrite in previous_overwrites.items()
+            f"{getattr(target, 'name', str(target))}: {format_overwrite(overwrite)}"
+            for target, overwrite in previous_overwrites.items()
         )
 
         new_overwrites = channel.overwrites
         new_permissions_text = "\n".join(
-            f"{target}: {overwrite}" for target, overwrite in new_overwrites.items()
+            f"{getattr(target, 'name', str(target))}: {format_overwrite(overwrite)}"
+            for target, overwrite in new_overwrites.items()
         )
 
         previous_members_text = ", ".join(member.name for member in members_with_access)
+
         current_members_with_access = [
             member for member in channel.guild.members
             if channel.permissions_for(member).read_messages
