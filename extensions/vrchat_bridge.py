@@ -242,6 +242,7 @@ class VrchatApi(commands.Cog):
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setup_vrchat(self, interaction: discord.Interaction):
+        logger.info(f"User {interaction.user} initiated setup_vrchat command for guild {interaction.guild_id}")
         """Command to set up the VRChat API by requesting user credentials."""
         guild_id = interaction.guild_id
 
@@ -275,6 +276,7 @@ class VrchatApi(commands.Cog):
                                      app_commands.Choice(name="Start listener", value="start_background_task"),
                                      app_commands.Choice(name="Stop listener", value="stop_background_task")])
     async def vrc(self, interaction: discord.Interaction, operation: app_commands.Choice[str]):
+        logger.info(f"User {interaction.user} initiated vrc command: {operation.name} for guild {interaction.guild_id}")
         """Handle VRChat API operations."""
         match operation.value:
             case "check_login_status":
@@ -445,6 +447,7 @@ class InviteRequestViewer(discord.ui.View):
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     @app_commands.checks.has_permissions(manage_messages=True)
     async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Accepting VRC invite request by: {interaction.user.name}")
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
                                            moderator_name=interaction.user.name,
@@ -464,6 +467,7 @@ class InviteRequestViewer(discord.ui.View):
     @discord.ui.button(label="Reject", style=discord.ButtonStyle.red)
     @app_commands.checks.has_permissions(manage_messages=True)
     async def reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Rejecting VRC invite request by: {interaction.user.name}")
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
                                            moderator_name=interaction.user.name,
@@ -483,6 +487,7 @@ class InviteRequestViewer(discord.ui.View):
     @discord.ui.button(label="Block & Reject", style=discord.ButtonStyle.grey)
     @app_commands.checks.has_permissions(manage_messages=True)
     async def block_and_reject_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        logger.info(f"Blocking and rejecting VRC invite request by: {interaction.user.name}")
         if self.vrc_handler.handle_request(user_id=self.user_id,
                                            user_name=self.user_name,
                                            moderator_name=interaction.user.name,
