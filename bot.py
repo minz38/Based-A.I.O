@@ -88,6 +88,7 @@ async def load_extensions() -> None:
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
 @bot.tree.context_menu(name="Youtube Music Download")
 async def music_download(interaction: discord.Interaction, message: discord.Message):
+    logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
     message_content: str = str(message.clean_content)
     youtube_regex: str = (r'(https?://(?:www\.)?(?:youtube|youtu|youtube-nocookie)\.'
                           r'(?:com|be)/(?:watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11}))')
@@ -114,86 +115,6 @@ async def music_download(interaction: discord.Interaction, message: discord.Mess
 
     else:
         await interaction.response.send_message("No YouTube video link found.", ephemeral=True)  # noqa
-
-
-@app_commands.allowed_installs(guilds=True, users=False)
-@app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
-@app_commands.context_menu(name="Unarchive Channel")
-async def unarchive_channel(interaction: discord.Interaction, message: discord.Message):
-    # Defer the response
-    await interaction.response.defer(ephemeral=True)  # noqa
-
-    # Ensure the message is from the bot and contains the archive data
-    if message.author != bot.user:
-        await interaction.followup.send("This message was not sent by the bot.", ephemeral=True)
-        return
-
-    # Ensure the message is in a text channel
-    channel = message.channel
-    if not isinstance(channel, discord.TextChannel):
-        await interaction.followup.send("This command can only be used in a text channel.", ephemeral=True)
-        return
-
-    # Parse the archive data from the message content
-    try:
-        content = message.content
-        # Extract the JSON data from the code block
-        pattern = r'```json\s*(\{.*?\})\s*```'
-        matches = re.findall(pattern, content, re.DOTALL)
-        if not matches:
-            raise ValueError("Archive data not found in message.")
-
-        json_data = matches[-1]
-        archive_data = json.loads(json_data)
-    except Exception as _:
-        await interaction.followup.send("Failed to parse archive data from the message.", ephemeral=True)
-        return
-
-    # Restore the previous permissions
-    previous_permissions = archive_data.get('previous_permissions', [])
-    for perm_data in previous_permissions:
-        target_id = perm_data.get('id')
-        target_type = perm_data.get('type')
-        allow_value = perm_data.get('allow')
-        deny_value = perm_data.get('deny')
-
-        if target_type == 'role':
-            target = interaction.guild.get_role(target_id)
-        elif target_type == 'member':
-            target = interaction.guild.get_member(target_id)
-        else:
-            target = None
-
-        if target is None:
-            # Skip if target no longer exists
-            continue
-
-        # Create PermissionOverwrite from allow and deny values
-        overwrite = discord.PermissionOverwrite.from_pair(
-            discord.Permissions(allow_value),
-            discord.Permissions(deny_value)
-        )
-
-        await channel.set_permissions(target, overwrite=overwrite)
-
-    # Remove per-user permissions set during archiving
-    for member in channel.overwrites:
-        if isinstance(member, discord.Member):
-            await channel.set_permissions(member, overwrite=None)
-
-    # Move the channel back to its previous category
-    previous_category_data = archive_data.get('previous_category', {})
-    previous_category_id = previous_category_data.get('id')
-    if previous_category_id:
-        previous_category = interaction.guild.get_channel(previous_category_id)
-        if previous_category and isinstance(previous_category, discord.CategoryChannel):
-            await channel.edit(category=previous_category)
-        else:
-            await channel.edit(category=None)  # Move to no category
-    else:
-        await channel.edit(category=None)  # Move to no category
-
-    await interaction.followup.send("Channel has been unarchived.", ephemeral=True)
 
 
 # If the bot joins a guild while running, it will call this function and creates a config file for it
