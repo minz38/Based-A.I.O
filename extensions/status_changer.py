@@ -1,6 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from logger import LoggerManager
+
+logger = LoggerManager(name="StatusChanger", level="INFO", log_file="logs/StatusChanger.log").get_logger()
 
 
 class PresenceCog(commands.Cog):
@@ -26,6 +29,7 @@ class PresenceCog(commands.Cog):
         activity_text="Enter the custom text for the activity."
     )
     async def activity(self, interaction: discord.Interaction, activity_type: int, activity_text: str):
+        logger.info(f"user: {interaction.user.name} changed bot's activity to {activity_type} {activity_text}")
         activity = None
 
         if activity_type == 0:
