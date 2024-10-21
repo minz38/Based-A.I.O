@@ -3,6 +3,7 @@ import json
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.utils import escape_mentions
 from bot import bot as shadow_bot
 from logger import LoggerManager
 
@@ -53,9 +54,9 @@ class ArchiveCog(commands.Cog):
         # Save the previous category
         previous_category = channel.category
 
-        # Remove role permissions and replace with per-user permissions
+        # Remove role permissions (except @everyone) and replace with per-user permissions
         for target in list(channel.overwrites):
-            if isinstance(target, discord.Role):
+            if isinstance(target, discord.Role) and target != channel.guild.default_role:  # ignore @everyone
                 await channel.set_permissions(target, overwrite=None)
 
         # Explicitly deny @everyone from seeing the channel
@@ -88,23 +89,23 @@ class ArchiveCog(commands.Cog):
             return result or "No permissions set"
 
         previous_permissions_text = "\n".join(
-            f"{getattr(target, 'n', str(target))}: {format_overwrite(overwrite)}"
+            f"{escape_mentions(getattr(target, 'n', str(target)))}: {format_overwrite(overwrite)}"
             for target, overwrite in previous_overwrites.items()
         )
 
         new_overwrites = channel.overwrites
         new_permissions_text = "\n".join(
-            f"{getattr(target, 'n', str(target))}: {format_overwrite(overwrite)}"
+            f"{escape_mentions(getattr(target, 'n', str(target)))}: {format_overwrite(overwrite)}"
             for target, overwrite in new_overwrites.items()
         )
 
-        previous_members_text = ", ".join(member.name for member in members_with_access)
+        previous_members_text = ", ".join(escape_mentions(member.name) for member in members_with_access)
 
         current_members_with_access = [
             member for member in channel.guild.members
             if channel.permissions_for(member).read_messages
         ]
-        new_members_text = ", ".join(member.name for member in current_members_with_access)
+        new_members_text = ", ".join(escape_mentions(member.name) for member in current_members_with_access)
 
         # Prepare data for restoring
         previous_permission_data = []
@@ -125,17 +126,22 @@ class ArchiveCog(commands.Cog):
 
         # Create a JSON object
         archive_data = {
-            'previous_permissions': previous_permission_data,
-            'previous_category': previous_category_data
+            'pre_perm': previous_permission_data,
+            'pre_cat': previous_category_data
         }
 
         # Send the archive message in the channel
+        # archive_message = (
+        #     "This channel has been archived:\n\n"
+        #     f"**Previous permission settings:**\n{previous_permissions_text}\n\n"
+        #     f"**List of previous members in this channel:**\n{previous_members_text}\n\n"
+        #     f"**New role permission settings:**\n{new_permissions_text}\n\n"
+        #     f"**List of people who still have access:**\n{new_members_text}\n\n"
+        #     f"```json\n{json.dumps(archive_data)}\n```"
+        # )
         archive_message = (
             "This channel has been archived:\n\n"
-            f"**Previous permission settings:**\n{previous_permissions_text}\n\n"
-            f"**List of previous members in this channel:**\n{previous_members_text}\n\n"
-            f"**New role permission settings:**\n{new_permissions_text}\n\n"
-            f"**List of people who still have access:**\n{new_members_text}\n\n"
+            f"*Restore code:*"
             f"```json\n{json.dumps(archive_data)}\n```"
         )
         await channel.send(archive_message)
@@ -180,7 +186,7 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
         return
 
     # Restore the previous permissions
-    previous_permissions = archive_data.get('previous_permissions', [])
+    previous_permissions = archive_data.get('pre_perm', [])
     for perm_data in previous_permissions:
         target_id = perm_data.get('i')  # id
         target_type = perm_data.get('t')  # type
@@ -212,7 +218,7 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
             await channel.set_permissions(member, overwrite=None)
 
     # Move the channel back to its previous category
-    previous_category_data = archive_data.get('previous_category', {})
+    previous_category_data = archive_data.get('pre_cat', {})
     previous_category_id = previous_category_data.get('i')
     if previous_category_id:
         previous_category = interaction.guild.get_channel(previous_category_id)
