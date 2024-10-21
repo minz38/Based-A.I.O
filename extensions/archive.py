@@ -39,9 +39,9 @@ class ArchiveCog(commands.Cog):
 
         # Collect current permission settings and print them
         previous_overwrites = channel.overwrites.copy()
-        print(f"Current permission overwrites for channel '{channel.name}':")
+        logger.info(f"Current permissions: {previous_overwrites}")
         for target, overwrite in previous_overwrites.items():
-            print(f"{target}: {overwrite}")
+            logger.info(f"Permission overwrite for {target}: {overwrite}")
 
         # Get members who can currently see the channel
         members_with_access = []
