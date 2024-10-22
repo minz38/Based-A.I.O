@@ -54,7 +54,7 @@ class AdminLog(commands.Cog):
             else:
                 return log_channel
         else:
-            logger.error(f"Admin log key is nor present in the guild config file")
+            logger.debug(f"Admin log key is nor present in the guild config file")
             return None
 
     @app_commands.command(name="admin_log", description="Set the admin log channel for this Bot")
