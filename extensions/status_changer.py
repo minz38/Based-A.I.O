@@ -9,6 +9,7 @@ logger = LoggerManager(name="StatusChanger", level="INFO", log_file="logs/Status
 class PresenceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.admin_log_cog = bot.get_cog("AdminLog")
 
     # Command to change the bot's activity
     @app_commands.command(name="activity", description="Change the bot's activity.")
@@ -47,8 +48,17 @@ class PresenceCog(commands.Cog):
             return
 
         await self.bot.change_presence(activity=activity)
-        await interaction.response.send_message(f"Bot activity changed to: {activity.type.name} {activity_text}",  # noqa
+        await interaction.response.send_message(f"Bot activity changed to: {activity.type.name} {activity_text}", # noqa
                                                 ephemeral=True)
+
+        # Retrieve the AdminLog cog and use log_interaction()
+
+        if self.admin_log_cog:
+            await self.admin_log_cog.log_interaction(
+                interaction,
+                text=f"Bot activity changed to: {activity.type.name} {activity_text}",
+                priority="info"
+            )
 
 
 async def setup(bot):

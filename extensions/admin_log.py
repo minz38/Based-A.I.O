@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from logger import LoggerManager
+from typing import Literal
 
 logger = LoggerManager(name="Admin Log", level="INFO", log_file="logs/admin_log.log").get_logger()
 
@@ -14,13 +15,26 @@ class AdminLog(commands.Cog):
         self.interaction = interaction
         self.log_channels: dict[discord.Guild.id, discord.TextChannel] = {}
 
-    async def log_interaction(self, interaction: discord.Interaction, text: str | None = None) -> None:
+    async def log_interaction(self, interaction: discord.Interaction,
+                              priority: Literal["info", "warn", "error"],
+                              text: str | None = None) -> None:
         log_channel = await self.get_admin_log_channel(interaction.guild.id)
         if log_channel is None:
             return
 
+        match priority:
+            case "info":
+                color = discord.Color.green()
+            case "warn":
+                color = discord.Color.orange()
+            case "error":
+                color = discord.Color.red()
+            case _:
+                color = discord.Color.default()
+
         embed = discord.Embed(title=f"Bot Command Used")
-        embed.add_field(name="Command", value=interaction.command.name, inline=True)
+        embed.colour = color
+        embed.add_field(name="Command", value=f'/{interaction.command.name}', inline=True)
         embed.add_field(name="User", value=interaction.user.display_name, inline=True)
         if text:
             embed.add_field(name="Note", value=text, inline=False)

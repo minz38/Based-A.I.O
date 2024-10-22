@@ -17,6 +17,8 @@ class ArchiveCog(commands.Cog):
     @app_commands.command(name="archive", description="Archive the current channel")
     async def archive(self, interaction: discord.Interaction, target_archive_category_id: str):
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+
         # Defer the response to give the bot time to process
         await interaction.response.defer(ephemeral=True)  # noqa
 
@@ -37,6 +39,12 @@ class ArchiveCog(commands.Cog):
         except ValueError:
             await interaction.followup.send("Invalid category ID provided.", ephemeral=True)
             return
+
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(interaction=interaction,
+                                                priority="warn",
+                                                text=f"Channel {channel.name} will be archived to:"
+                                                     f" {archive_category.name}.")
 
         # Collect current permission settings and print them
         previous_overwrites = channel.overwrites.copy()
@@ -148,6 +156,10 @@ class ArchiveCog(commands.Cog):
 
         # Inform the user that the channel has been archived
         await interaction.followup.send("Channel has been archived.", ephemeral=True)
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(interaction=interaction,
+                                                priority="info",
+                                                text=f"Channel {channel.name} archived.")
 
 
 @app_commands.allowed_installs(guilds=True, users=False)
@@ -155,6 +167,8 @@ class ArchiveCog(commands.Cog):
 @shadow_bot.tree.context_menu(name="Restore Channel")
 async def restore_channel(interaction: discord.Interaction, message: discord.Message) -> None:
     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name} on message id: {message.id}")
+    admin_log_cog = interaction.client.get_cog("AdminLog")  # shadow_bot.get_cog("AdminLog")
+
     # Defer the response
     await interaction.response.defer(ephemeral=True)  # noqa
 
@@ -163,6 +177,10 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
         await interaction.followup.send("This message was not sent by the bot.", ephemeral=True)
         return
 
+    if admin_log_cog:
+        await admin_log_cog.log_interaction(interaction=interaction,
+                                            priority="info",
+                                            text=f"Channel {message.channel.name} restored.")
     # Ensure the message is in a text channel
     channel = message.channel
     if not isinstance(channel, discord.TextChannel):
