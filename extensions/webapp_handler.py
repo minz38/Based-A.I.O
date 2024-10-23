@@ -1,5 +1,6 @@
 import json
 import discord
+import asyncio
 from discord import app_commands
 from discord.ext import commands
 from dependencies.google_sheets_handler import GoogleSheetHandler
@@ -75,27 +76,42 @@ class QuestionHandler(commands.Cog):
                                    "cdn_port", "cdn_user", "cdn_password", "cdn_file_path"]
 
                 if any(k not in config for k in keys):
-                    return await interaction.response.send_message(  # noqa
+                    return await interaction.response.send_message(
                         content="The Guild Config file is missing or incomplete.\n"
-                                "Please setup the webapp handler with /webapp <setup>.")
+                                "Please setup the webapp handler with `/webapp setup`."
+                    )
 
                 else:
-                    message_id = await interaction.response.send_message(  # noqa
-                        content=f"Processing {operation.value}...\nlean back and get a Coffee ☕️")
-                    msg = await interaction.channel.fetch_message(message_id)
+                    # Send the initial response
+                    await interaction.response.send_message(
+                        content=f"Processing {operation.value}...\nLean back and get a coffee ☕️"
+                    )
+
+                    # Retrieve the original response message
+                    message = await interaction.original_response()
+
                     try:
                         gs = GoogleSheetHandler(interaction.guild_id)
 
-                        if gs.pull_from_spreadsheet() is not []:
-                            await msg.edit(content="✅ Step 1/2 successfully... Uploading all files...")
+                        # Run pull_from_spreadsheet in a thread
+                        questions = await asyncio.to_thread(gs.pull_from_spreadsheet)
 
-                            if gs.process_all():
-                                await msg.edit(content="✅ Step 2/2 successfully... "
-                                                       "All files have been processed and uploaded to the CDN")
+                        if questions:
+                            await message.edit(content="✅ Step 1/2 successfully... Uploading all files...")
 
+                            # Run process_all in a thread
+                            result = await asyncio.to_thread(gs.process_all)
+
+                            if result:
+                                await message.edit(content="✅ Step 2/2 successfully... "
+                                                           "All files have been processed and uploaded to the CDN")
+                            else:
+                                await message.edit(content="Could not process all files.")
+                        else:
+                            await message.edit(content="No questions were pulled from the spreadsheet.")
                     except Exception as e:
                         logger.error(f"Could not pull & push questions: {e}")
-                        await msg.edit(content="Could not process all files.")
+                        await message.edit(content="Could not process all files.")
 
             case "setup":
                 embed = discord.Embed(
