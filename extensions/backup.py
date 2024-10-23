@@ -82,8 +82,7 @@ def sanitize_filename(filename):
 
 # Generic method to handle emoji and sticker backups
 async def create_media_backup(interaction, media_type, media_items):
-    timestamp = datetime.now().strftime("%d%m%Y")
-    base_backup_file = f"backup_{media_type}s_{interaction.guild_id}_{timestamp}"
+    base_backup_file = f"backup_{media_type}s_{interaction.guild_id}_{datetime.now().strftime("%d%m%Y")}"
     backup_dir = os.path.join("backup", base_backup_file)
     zip_file_path = f"{backup_dir}.zip"
 
@@ -251,8 +250,7 @@ async def create_vrc_link_map_backup(interaction):
 
 
 async def create_role_backup(interaction):
-    timestamp = datetime.now().strftime("%d%m%Y")
-    base_backup_file = f"backup_roles_{interaction.guild_id}_{timestamp}"
+    base_backup_file = f"backup_roles_{interaction.guild_id}_{datetime.now().strftime("%d%m%Y")}"
     counter = 1
     backup_file = f"{base_backup_file}.json"
     backup_path = os.path.join("backup", backup_file)
@@ -302,8 +300,7 @@ async def create_role_backup(interaction):
 
 async def create_channel_backup(interaction):
     # guild_id = interaction.guild_id
-    timestamp = datetime.now().strftime("%d%m%Y")
-    base_backup_file = f"backup_channels_{interaction.guild_id}_{timestamp}"
+    base_backup_file = f"backup_channels_{interaction.guild_id}_{datetime.now().strftime("%d%m%Y")}"
     counter = 1
     backup_file = f"{base_backup_file}.json"
     backup_path = os.path.join("backup", backup_file)
