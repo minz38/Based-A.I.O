@@ -302,7 +302,8 @@ async def create_role_backup(interaction):
 
 async def create_channel_backup(interaction):
     # guild_id = interaction.guild_id
-    base_backup_file = f"backup_channels_{interaction.guild_id}_{datetime.now().strftime("%d%m%Y")}"
+    timestamp = datetime.now().strftime("%d%m%Y")
+    base_backup_file = f"backup_channels_{interaction.guild_id}_{timestamp}"
     counter = 1
     backup_file = f"{base_backup_file}.json"
     backup_path = os.path.join("backup", backup_file)
