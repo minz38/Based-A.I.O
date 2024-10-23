@@ -13,6 +13,9 @@ logger = LoggerManager(name="QuestionHandler", level="INFO", log_file="logs/Ques
 key: bytes = encryption_handler.load_key_from_config()
 
 
+# NOTE: FFMPEG and FFPROBE needs to be installed in the root directory of the bot as well as in the
+# dependencies directory
+
 # TODO: Add admin-log outputs
 
 # create a class and a slash command for the cog
