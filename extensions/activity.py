@@ -17,6 +17,7 @@ class Inactivity(commands.Cog):
         self.bot: commands.Bot = bot
         self.voice_channel_join_times: dict = {}
         self.active_guilds: list[int] = []
+        self.role_to_track: list[tuple[int, int]] = []
 
         # Ensure the activity folder exists
         if not os.path.exists('activity'):
@@ -87,6 +88,8 @@ class Inactivity(commands.Cog):
                     # If 'voice_tracking' is in active_extensions, add the guild_id to active_guilds
                     if "voice_tracking" in guild_config.get('active_extensions', []):
                         self.active_guilds.append(int(file.split('.')[0]))
+                    if "voice_tracking_role" in guild_config:
+                        self.role_to_track.append((int(file.split('.')[0]), guild_config['voice_tracking_role']))
         logger.info(f"Total active guilds loaded: {len(self.active_guilds)}")
 
     @app_commands.command(name="vc_tracking", description="Setup the Voicechannel Tracking feature.")
@@ -95,9 +98,13 @@ class Inactivity(commands.Cog):
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(operation=[app_commands.Choice(name="Enable", value=1),
                                      app_commands.Choice(name="Disable", value=0),
-                                     app_commands.Choice(name="Status", value=2)])
-    async def voice_tracking(self, interaction: discord.Interaction, operation: int) -> None:
+                                     app_commands.Choice(name="Status", value=2),
+                                     app_commands.Choice(name="Role to Track", value=3)])
+    async def voice_tracking(self, interaction: discord.Interaction, operation: int, role: discord.Role = None) -> None:
+        logger.info(f"Command: {interaction.command.name} used by {interaction.user.name} "
+                    f"operation: {operation}, role: {role}")
         match operation:
+
             case 1:  # Enable
                 guild_id = interaction.guild.id
                 if guild_id not in self.active_guilds:
@@ -109,10 +116,11 @@ class Inactivity(commands.Cog):
                         with open(f'configs/guilds/{guild_id}.json', 'w') as f:
                             json.dump(guild_config, f, indent=4)
                             logger.info(f"Voice tracking enabled for guild: {interaction.guild.name} ({guild_id})")
-                    await interaction.response.send_message(content="Voice tracking enabled successfully.") # noqa
+                    await interaction.response.send_message(content="Voice tracking enabled successfully.")  # noqa
                     print(self.active_guilds)  # Debugging purpose
                 else:
-                    await interaction.response.send_message(content="Voice tracking is already enabled for this guild.")  # noqa
+                    await interaction.response.send_message(  # noqa
+                        content="Voice tracking is already enabled for this guild.")
                     logger.warning(f"Voice tracking already enabled for guild: {interaction.guild.name} ({guild_id})")
 
             case 0:  # Disable
@@ -125,16 +133,34 @@ class Inactivity(commands.Cog):
                         with open(f'configs/guilds/{guild_id}.json', 'w') as file:
                             json.dump(guild_config, file, indent=4)
                             logger.info(f"Voice tracking disabled for guild: {interaction.guild.name} ({guild_id})")
-                            await interaction.response.send_message(content="Voice tracking disabled successfully.") # noqa
+                            await interaction.response.send_message(  # noqa
+                                content="Voice tracking disabled successfully.")
                 else:
-                    await interaction.response.send_message(content= # noqa
+                    await interaction.response.send_message(content=  # noqa
                                                             "Voice tracking is already disabled for this guild.")
                     logger.warning(f"Voice tracking already disabled for guild: {interaction.guild.name} ({guild_id})")
+
             case 2:  # status
                 if int(interaction.guild_id) in self.active_guilds:
                     await interaction.response.send_message(content="Voice tracking is enabled for this guild.")  # noqa
                 else:
-                    await interaction.response.send_message(content="Voice tracking is disabled for this guild.")  # noqa
+                    await interaction.response.send_message(  # noqa
+                        content="Voice tracking is disabled for this guild.")
+
+            case 3:  # change tracked role
+                if role is None:
+                    await interaction.response.send_message("Please specify a role for voice tracking.")  # noqa
+
+                else:
+                    # Save the role to the guild config or update it
+                    with open(f'configs/guilds/{interaction.guild_id}.json', 'r') as f:
+                        guild_config = json.load(f)
+                        guild_config['voice_tracking_role'] = role.id
+                    with open(f'configs/guilds/{interaction.guild_id}.json', 'w') as file:
+                        json.dump(guild_config, file, indent=4)
+                    self.role_to_track.append((int(interaction.guild_id), role.id))
+                    await interaction.response.send_message(f"Voice tracking role set to {role.name}.\n"  # noqa
+                                                            f"roles above this role wont be tracked")
 
             case _:
                 raise ValueError("Invalid operation. Please choose 'Enable' or 'Disable'.")
@@ -147,6 +173,7 @@ class Inactivity(commands.Cog):
                                 app_commands.Choice(name="60 days", value=60),
                                 app_commands.Choice(name="90 days", value=90)])
     async def inactivity_check(self, interaction: discord.Interaction, days: int = 30) -> None:
+        logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}, days: {days}")
         channel_counter: int = 0
         message_counter: int = 0
         past_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
