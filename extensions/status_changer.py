@@ -9,7 +9,6 @@ logger = LoggerManager(name="StatusChanger", level="INFO", log_file="logs/Status
 class PresenceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.admin_log_cog = bot.get_cog("AdminLog")
 
     # Command to change the bot's activity
     @app_commands.command(name="activity", description="Change the bot's activity.")
@@ -31,7 +30,6 @@ class PresenceCog(commands.Cog):
     )
     async def activity(self, interaction: discord.Interaction, activity_type: int, activity_text: str):
         logger.info(f"user: {interaction.user.name} changed bot's activity to {activity_type} {activity_text}")
-        activity = None
 
         if activity_type == 0:
             activity = discord.Game(name=activity_text)
@@ -48,15 +46,15 @@ class PresenceCog(commands.Cog):
             return
 
         await self.bot.change_presence(activity=activity)
-        await interaction.response.send_message(f"Bot activity changed to: {activity.type.name} {activity_text}", # noqa
+        await interaction.response.send_message(f"Bot activity changed to: {activity.name} {activity_text}", # noqa
                                                 ephemeral=True)
 
         # Retrieve the AdminLog cog and use log_interaction()
-
-        if self.admin_log_cog:
-            await self.admin_log_cog.log_interaction(
+        admin_log_cog = self.bot.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
                 interaction,
-                text=f"Bot activity changed to: {activity.type.name} {activity_text}",
+                text=f"Bot activity changed to: {activity.type.name} | {activity_text}",  # noqa
                 priority="info"
             )
 
