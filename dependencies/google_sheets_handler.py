@@ -6,6 +6,7 @@ import zipfile
 import gspread
 import paramiko
 import requests
+import asyncio
 from enum import Enum
 from pydub import AudioSegment
 from paramiko import SSHClient, AutoAddPolicy
@@ -15,7 +16,7 @@ import dependencies.encryption_handler as encryption_handler
 
 logger = LoggerManager(name="GoogleSheetHandler", level="INFO", log_file="logs/GoogleSheetHandler.log").get_logger()
 
-path_to_ffmpeg: str = '/ffmpeg.exe'
+path_to_ffmpeg: str = 'dependencies/ffmpeg.exe'
 
 
 class QuestionType(Enum):
@@ -193,8 +194,9 @@ class GoogleSheetHandler:
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'outtmpl': temp_audio_path,  # Output file name with .mp3 extension
-                'noplaylist': 'True',
-                'ffmpeg_location': path_to_ffmpeg,
+                'noplaylist': True,
+                'quiet': True,
+                'ffmpeg_location': path_to_ffmpeg,  # Path to ffmpeg.exe'
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',  # Force the output format to be MP3
