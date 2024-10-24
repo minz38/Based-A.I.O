@@ -308,7 +308,8 @@ class Inactivity(commands.Cog):
         if admin_log_cog:
             await admin_log_cog.log_interaction(
                 interaction,
-                text=f"VC Tracking Exclude - {action} role: {role.name} for guild: {interaction.guild.name}",
+                text=f"VC Tracking Exclude - {action} role: {role.name if role else "None"} for guild: "
+                     f"{interaction.guild.name}",
                 priority="info"
             )
         guild_id = interaction.guild.id
