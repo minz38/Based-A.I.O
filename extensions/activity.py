@@ -90,7 +90,12 @@ class Inactivity(commands.Cog):
         logger.info("Loading active guilds with voice tracking enabled.")
         for file in os.listdir('configs/guilds'):
             if file.endswith('.json') and not file.startswith('gs'):
-                guild_id = int(file.split('.')[0])
+                try:
+                    guild_id = int(file.split('.')[0])  # Safely attempt to convert to int
+                except ValueError:
+                    logger.error(f"Invalid guild ID in filename: {file}")
+                    continue  # Skip invalid file names
+
                 with open(f'configs/guilds/{file}', 'r') as f:
                     guild_config = json.load(f)
                     # If 'voice_tracking' is in active_extensions, add the guild_id to active_guilds
