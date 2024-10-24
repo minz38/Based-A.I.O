@@ -111,6 +111,14 @@ class Inactivity(commands.Cog):
     ])
     async def voice_tracking(self, interaction: discord.Interaction, operation: int) -> None:
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Voice Tracking {['Enabled', 'Disabled'][operation-1]} for guild: {interaction.guild.name})",
+                priority="info"
+            )
+
         match operation:
 
             case 1:  # Enable
@@ -175,6 +183,14 @@ class Inactivity(commands.Cog):
     ])
     async def inactivity_check(self, interaction: discord.Interaction, days: int = 30) -> None:
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}, days: {days}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Inactivity Check for {days} days for guild: {interaction.guild.name}",
+                priority="info"
+            )
+
         channel_counter: int = 0
         message_counter: int = 0
         past_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
@@ -287,6 +303,14 @@ class Inactivity(commands.Cog):
         """
         logger.info(
             f"Command: {interaction.command.name} used by {interaction.user.name}, action: {action}, role: {role}")
+
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"VC Tracking Exclude - {action} role: {role.name} for guild: {interaction.guild.name}",
+                priority="info"
+            )
         guild_id = interaction.guild.id
 
         if action.lower() == "add":
