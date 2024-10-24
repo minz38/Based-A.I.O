@@ -4,8 +4,6 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from discord.utils import escape_mentions
-from discord.ui import View, Button
 from bot import bot as shadow_bot
 from logger import LoggerManager
 
@@ -19,20 +17,22 @@ class ConfirmArchiveView(discord.ui.View):
         self.archive_func = archive_func
 
     @discord.ui.button(label="Proceed", style=discord.ButtonStyle.green, emoji='✅')
-    async def proceed(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def proceed(self, interaction: discord.Interaction, button: discord.ui.Button):  # noqa
         if interaction.user != self.interaction.user:
-            await interaction.response.send_message("You are not authorized to perform this action.", ephemeral=True)
+            await interaction.response.send_message("You are not authorized to perform this action.",  # noqa
+                                                    ephemeral=True)
             return
-        await interaction.response.defer()
+        await interaction.response.defer()  # noqa
         await self.archive_func()
         self.stop()
 
-    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, emoji='❌')
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, emoji='✖️')
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):  # noqa
         if interaction.user != self.interaction.user:
-            await interaction.response.send_message("You are not authorized to perform this action.", ephemeral=True)
+            await interaction.response.send_message("You are not authorized to perform this action.",  # noqa
+                                                    ephemeral=True)
             return
-        await interaction.response.send_message("Archiving has been canceled.", ephemeral=True)
+        await interaction.response.send_message("Archiving has been canceled.", ephemeral=True)  # noqa
         self.stop()
 
 
@@ -48,7 +48,7 @@ class ArchiveCog(commands.Cog):
         admin_log_cog = interaction.client.get_cog("AdminLog")
 
         # Defer the response to give the bot time to process
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)  # noqa
 
         # Get the current channel
         channel = interaction.channel
@@ -143,7 +143,7 @@ class ArchiveCog(commands.Cog):
                     temp_member_overwrites.append(member.id)
 
             # Move the channel to the archive category
-            await channel.edit(category=archive_category)
+            await channel.edit(category=archive_category)  # todo why is that argument unexpected
 
             # Prepare data for restoring
             previous_permission_data = []
@@ -218,7 +218,7 @@ class ArchiveCog(commands.Cog):
         with open(config_file, 'w') as f:
             json.dump(guild_config, f, indent=4)
 
-        await interaction.response.send_message(f"Archive category set to {category.name}.", ephemeral=True)
+        await interaction.response.send_message(f"Archive category set to {category.name}.", ephemeral=True)  # noqa
         logger.info(f"Archive category set to {category.name} ({category.id}) for guild {interaction.guild.name}")
 
 
@@ -228,7 +228,7 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
     admin_log_cog = interaction.client.get_cog("AdminLog")
 
     # Defer the response
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=True)  # noqa
 
     # Ensure the message is from the bot and contains the archive data
     if message.author != shadow_bot.user:
@@ -285,7 +285,7 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
         await channel.set_permissions(target, overwrite=overwrite)
 
     # Remove per-user permissions set during archiving
-    temp_member_overwrites = archive_data.get('t_m_o', []) # temp_member_overwrites
+    temp_member_overwrites = archive_data.get('t_m_o', [])  # temp_member_overwrites
     # Build a set of member IDs who had per-user overwrites before archiving
     members_with_preexisting_overwrites = set()
     for perm_data in previous_permissions:
