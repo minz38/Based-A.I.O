@@ -11,7 +11,7 @@ class PresenceCog(commands.Cog):
         self.bot = bot
 
     # Command to change the bot's activity
-    @app_commands.command(name="activity", description="Change the bot's activity.")
+    @app_commands.command(name="status", description="Change the bot's activity status.")
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @app_commands.checks.has_permissions(manage_guild=True)
@@ -21,7 +21,8 @@ class PresenceCog(commands.Cog):
             app_commands.Choice(name="Streaming", value=1),
             app_commands.Choice(name="Listening", value=2),
             app_commands.Choice(name="Watching", value=3),
-            app_commands.Choice(name="Competing", value=5)
+            app_commands.Choice(name="Competing", value=5),
+            app_commands.Choice(name="None", value=6)
         ]
     )
     @app_commands.describe(
@@ -41,6 +42,9 @@ class PresenceCog(commands.Cog):
             activity = discord.Activity(type=discord.ActivityType.watching, name=activity_text)
         elif activity_type == 5:
             activity = discord.Activity(type=discord.ActivityType.competing, name=activity_text)
+        elif activity_type == 6:
+            activity = discord.Activity(type=discord.ActivityType.unknown, name=None)
+
         else:
             await interaction.response.send_message("Invalid activity type selected.", ephemeral=True)  # noqa
             return
