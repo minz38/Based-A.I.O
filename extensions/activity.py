@@ -305,10 +305,11 @@ class Inactivity(commands.Cog):
             f"Command: {interaction.command.name} used by {interaction.user.name}, action: {action}, role: {role}")
 
         admin_log_cog = interaction.client.get_cog("AdminLog")
+        role_name = role.name if role else "None"
         if admin_log_cog:
             await admin_log_cog.log_interaction(
                 interaction,
-                text=f"VC Tracking Exclude - {action} role: {role.name if role else "None"} for guild: "
+                text=f"VC Tracking Exclude - {action} role: {role_name} for guild: "
                      f"{interaction.guild.name}",
                 priority="info"
             )
