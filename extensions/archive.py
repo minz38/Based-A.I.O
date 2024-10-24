@@ -1,5 +1,6 @@
 import re
 import json
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -15,12 +16,14 @@ class ArchiveCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="archive", description="Archive the current channel")
-    async def archive(self, interaction: discord.Interaction, target_archive_category_id: str):
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_channels=True)
+    async def archive(self, interaction: discord.Interaction):
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
         admin_log_cog = interaction.client.get_cog("AdminLog")
 
         # Defer the response to give the bot time to process
-        await interaction.response.defer(ephemeral=True)  # noqa
+        await interaction.response.defer(ephemeral=True)
 
         # Get the current channel
         channel = interaction.channel
@@ -30,21 +33,36 @@ class ArchiveCog(commands.Cog):
             await interaction.followup.send("This command can only be used in a text channel.", ephemeral=True)
             return
 
-        # Validate and fetch the archive category
-        try:
-            category_id = int(target_archive_category_id)
-            archive_category = interaction.guild.get_channel(category_id)
-            if not isinstance(archive_category, discord.CategoryChannel):
-                raise ValueError
-        except ValueError:
-            await interaction.followup.send("Invalid category ID provided.", ephemeral=True)
+        # Load the archive category ID from the guild's config
+        guild_id = interaction.guild.id
+        config_file = f'configs/guilds/{guild_id}.json'
+        if not os.path.exists(config_file):
+            await interaction.followup.send(
+                "No configuration file found for this guild. Please set up the archive category using `/set_archive`.",
+                ephemeral=True)
+            return
+
+        with open(config_file, 'r') as f:
+            guild_config = json.load(f)
+
+        archive_category_id = guild_config.get('archive_category_id')
+        if not archive_category_id:
+            await interaction.followup.send("No archive category set. Please use `/set_archive` to set it.",
+                                            ephemeral=True)
+            return
+
+        # Fetch the archive category
+        archive_category = interaction.guild.get_channel(archive_category_id)
+        if not isinstance(archive_category, discord.CategoryChannel):
+            await interaction.followup.send(
+                "The archive category ID stored is invalid. Please set it again using `/set_archive`.", ephemeral=True)
             return
 
         if admin_log_cog:
             await admin_log_cog.log_interaction(interaction=interaction,
                                                 priority="warn",
-                                                text=f"Channel {channel.name} will be archived to:"
-                                                     f" {archive_category.name}.")
+                                                text=f"Channel {channel.name} will be archived to: "
+                                                     f"{archive_category.name}.")
 
         # Collect current permission settings and print them
         previous_overwrites = channel.overwrites.copy()
@@ -82,45 +100,12 @@ class ArchiveCog(commands.Cog):
         # Move the channel to the archive category
         await channel.edit(category=archive_category)
 
-        # Prepare messages detailing permission changes
-        def format_overwrite(overwrites):
-            allow_perms, deny_perms = overwrites.pair()
-            allow = [perm for perm in discord.Permissions.VALID_FLAGS if getattr(allow_perms, perm)]
-            deny = [perm for perm in discord.Permissions.VALID_FLAGS if getattr(deny_perms, perm)]
-            result = ''
-            if allow:
-                result += f"Allow: {', '.join(allow)}"
-            if deny:
-                if result:
-                    result += "; "
-                result += f"Deny: {', '.join(deny)}"
-            return result or "No permissions set"
-
-        previous_permissions_text = "\n".join(
-            f"{escape_mentions(getattr(target, 'n', str(target)))}: {format_overwrite(overwrite)}"
-            for target, overwrite in previous_overwrites.items()
-        )
-
-        new_overwrites = channel.overwrites
-        new_permissions_text = "\n".join(
-            f"{escape_mentions(getattr(target, 'n', str(target)))}: {format_overwrite(overwrite)}"
-            for target, overwrite in new_overwrites.items()
-        )
-
-        previous_members_text = ", ".join(escape_mentions(member.name) for member in members_with_access)
-
-        current_members_with_access = [
-            member for member in channel.guild.members
-            if channel.permissions_for(member).read_messages
-        ]
-        new_members_text = ", ".join(escape_mentions(member.name) for member in current_members_with_access)
-
         # Prepare data for restoring
         previous_permission_data = []
         for target, overwrite in previous_overwrites.items():
             target_data = {
                 'i': target.id,
-                't': 'r' if isinstance(target, discord.Role) else 'm',  # r role or m member
+                't': 'r' if isinstance(target, discord.Role) else 'm',  # 'r' for role, 'm' for member
                 'a': overwrite.pair()[0].value,
                 'd': overwrite.pair()[1].value
             }
@@ -139,14 +124,6 @@ class ArchiveCog(commands.Cog):
         }
 
         # Send the archive message in the channel
-        # archive_message = (
-        #     "This channel has been archived:\n\n"
-        #     f"**Previous permission settings:**\n{previous_permissions_text}\n\n"
-        #     f"**List of previous members in this channel:**\n{previous_members_text}\n\n"
-        #     f"**New role permission settings:**\n{new_permissions_text}\n\n"
-        #     f"**List of people who still have access:**\n{new_members_text}\n\n"
-        #     f"```json\n{json.dumps(archive_data)}\n```"
-        # )
         archive_message = (
             "This channel has been archived:\n\n"
             f"*Restore code:*"
@@ -161,9 +138,40 @@ class ArchiveCog(commands.Cog):
                                                 priority="info",
                                                 text=f"Channel {channel.name} archived.")
 
+    @app_commands.command(name="set_archive", description="Set the archive category for this guild")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def set_archive(self, interaction: discord.Interaction, category: discord.CategoryChannel):
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(interaction=interaction,
+                                                priority="info",
+                                                text=f"Set archive category for guild {interaction.guild.name} to"
+                                                     f" {category.name}.")
+        logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+        guild_id = interaction.guild.id
+        config_file = f'configs/guilds/{guild_id}.json'
 
-@app_commands.allowed_installs(guilds=True, users=False)
-@app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
+        # Load existing config or create a new one
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                guild_config = json.load(f)
+        else:
+            guild_config = {}
+
+        # Update the archive category ID
+        guild_config['archive_category_id'] = category.id
+
+        # Save the updated config
+        with open(config_file, 'w') as f:
+            json.dump(guild_config, f, indent=4)
+
+        await interaction.response.send_message(f"Archive category set to {category.name}.", ephemeral=True)  # noqa
+        logger.info(f"Archive category set to {category.name} ({category.id}) for guild {interaction.guild.name}")
+
+
+@app_commands.guild_only()
+@app_commands.checks.has_permissions(manage_channels=True)
 @shadow_bot.tree.context_menu(name="Restore Channel")
 async def restore_channel(interaction: discord.Interaction, message: discord.Message) -> None:
     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name} on message id: {message.id}")
@@ -177,10 +185,6 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
         await interaction.followup.send("This message was not sent by the bot.", ephemeral=True)
         return
 
-    if admin_log_cog:
-        await admin_log_cog.log_interaction(interaction=interaction,
-                                            priority="info",
-                                            text=f"Channel {message.channel.name} restored.")
     # Ensure the message is in a text channel
     channel = message.channel
     if not isinstance(channel, discord.TextChannel):
@@ -248,6 +252,10 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
         await channel.edit(category=None)  # Move to no category
 
     await interaction.followup.send("Channel has been unarchived.", ephemeral=True)
+    if admin_log_cog:
+        await admin_log_cog.log_interaction(interaction=interaction,
+                                            priority="info",
+                                            text=f"Channel {channel.name} restored.")
 
 
 async def setup(bot):
