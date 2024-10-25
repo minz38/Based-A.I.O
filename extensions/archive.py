@@ -223,6 +223,7 @@ class ArchiveCog(commands.Cog):
 
 
 @shadow_bot.tree.context_menu(name="Restore Channel")
+@app_commands.guild_only()
 async def restore_channel(interaction: discord.Interaction, message: discord.Message) -> None:
     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name} on message id: {message.id}")
     admin_log_cog = interaction.client.get_cog("AdminLog")
