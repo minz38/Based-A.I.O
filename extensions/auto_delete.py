@@ -1,10 +1,12 @@
-import discord
-from discord.ext import commands, tasks
-from discord import app_commands
 import json
-import os
-from pathlib import Path
+import discord
 import asyncio
+from pathlib import Path
+from logger import LoggerManager
+from discord import app_commands
+from discord.ext import commands
+
+logger = LoggerManager(name="AutoDelete", level="INFO", log_file="logs/AutoDelete.log").get_logger()
 
 
 class AutoDeleteCog(commands.Cog):
@@ -14,7 +16,8 @@ class AutoDeleteCog(commands.Cog):
         self.load_all_configs()
 
     # Utility function to get the config path for each guild
-    def get_config_path(self, guild_id):
+    @staticmethod
+    def get_config_path(guild_id):
         return Path(f"configs/guilds/{guild_id}.json")
 
     # Load all configurations on startup
@@ -80,11 +83,13 @@ class AutoDeleteCog(commands.Cog):
                     if len(messages_to_delete) > deletion_limit:
                         # Send notification to the channel
                         await channel.send(
-                            f"⚠️ Cannot delete more than {deletion_limit} messages at once. Auto-delete operation aborted."
+                            f"⚠️ Cannot delete more than {deletion_limit}"
+                            f" messages at once. Auto-delete operation aborted."
                         )
                     else:
                         # Proceed to delete messages using purge
-                        await channel.purge(limit={deletion_limit*2}, check=lambda m: not m.pinned and not m.author.bot)
+                        await channel.purge(limit={deletion_limit * 2},
+                                            check=lambda m: not m.pinned and not m.author.bot)
 
                 except Exception as e:
                     print(f"Error deleting messages in {channel.name}: {e}")
@@ -107,9 +112,19 @@ class AutoDeleteCog(commands.Cog):
         channel_id = interaction.channel_id
         guild_id = interaction.guild_id
         config_path = self.get_config_path(guild_id)
-
+        logger.info(f"Auto-delete enabled for channel {interaction.channel.name} in guild {interaction.guild.name}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Auto-delete enabled for channel {interaction.channel.name}"
+                     f" (hours: {hours})",
+                priority="info"
+            )
         if hours <= 0:
-            await interaction.response.send_message("⚠️ Please provide a valid number of hours (> 0).", ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "⚠️ Please provide a valid number of hours (> 0).", ephemeral=True
+            )
             return
 
         # Load existing config or initialize a new one
@@ -126,7 +141,7 @@ class AutoDeleteCog(commands.Cog):
         # Schedule the auto-delete task
         self.schedule_auto_delete(channel_id, hours, config.get("deletion_limit", 50))
 
-        await interaction.response.send_message(
+        await interaction.response.send_message(  # noqa
             f"🟢 Automatic message deletion enabled for this channel every {hours} hour(s).", ephemeral=True
         )
 
@@ -137,11 +152,18 @@ class AutoDeleteCog(commands.Cog):
         channel_id = interaction.channel_id
         guild_id = interaction.guild_id
         config_path = self.get_config_path(guild_id)
-
+        logger.info(f"Auto-delete disabled for channel {interaction.channel.name} in guild {interaction.guild.name}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Auto-delete disabled for channel {interaction.channel.name}",
+                priority="info"
+            )
         # Load config
         if not config_path.is_file():
-            await interaction.response.send_message("🔴 Automatic message deletion is not enabled for this channel.",
-                                                    ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "🔴 Automatic message deletion is not enabled for this channel.", ephemeral=True)
             return
 
         with open(config_path, "r") as file:
@@ -160,11 +182,11 @@ class AutoDeleteCog(commands.Cog):
                 self.auto_delete_tasks[channel_id].cancel()
                 del self.auto_delete_tasks[channel_id]
 
-            await interaction.response.send_message("🔴 Automatic message deletion disabled for this channel.",
-                                                    ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "🔴 Automatic message deletion disabled for this channel.", ephemeral=True)
         else:
-            await interaction.response.send_message("🔴 Automatic message deletion is not enabled for this channel.",
-                                                    ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "🔴 Automatic message deletion is not enabled for this channel.", ephemeral=True)
 
     # Subcommand to check the status of auto-delete
     @auto_delete_group.command(name="status", description="View auto-delete settings for this guild.")
@@ -172,6 +194,14 @@ class AutoDeleteCog(commands.Cog):
     async def status(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
         config_path = self.get_config_path(guild_id)
+        logger.info(f"Auto-delete status checked for guild {interaction.guild.name}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Auto-delete status checked",
+                priority="info"
+            )
 
         # Load config
         if config_path.is_file():
@@ -181,18 +211,23 @@ class AutoDeleteCog(commands.Cog):
             deletion_limit = config.get("deletion_limit", 50)
 
             if auto_delete_channels:
-                message = f"📄 **Auto-Delete Settings:**\n🛑 **Deletion Limit:** {deletion_limit} messages per operation\n"
+                message = (f"📄 **Auto-Delete Settings:**\n🛑 **Deletion Limit:** {deletion_limit}"
+                           f" messages per operation\n")
                 for chan_id, hrs in auto_delete_channels.items():
                     channel = self.bot.get_channel(int(chan_id))
                     if channel:
                         message += f"🔹 {channel.mention} - Every {hrs} hour(s)\n"
                     else:
                         message += f"🔹 Channel ID {chan_id} (Not Found) - Every {hrs} hour(s)\n"
-                await interaction.response.send_message(message, ephemeral=True)
+                await interaction.response.send_message(message, ephemeral=True)  # noqa
             else:
-                await interaction.response.send_message("📄 No channels have auto-delete enabled.", ephemeral=True)
+                await interaction.response.send_message(  # noqa
+                    "📄 No channels have auto-delete enabled.", ephemeral=True
+                )
         else:
-            await interaction.response.send_message("📄 No channels have auto-delete enabled.", ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "📄 No channels have auto-delete enabled.", ephemeral=True
+            )
 
     # Subcommand to set the deletion limit
     @auto_delete_group.command(name="set_limit",
@@ -202,9 +237,18 @@ class AutoDeleteCog(commands.Cog):
     async def set_limit(self, interaction: discord.Interaction, limit: int = 50):
         guild_id = interaction.guild_id
         config_path = self.get_config_path(guild_id)
-
+        logger.info(f"Deletion limit set to {limit} for guild {interaction.guild.name}")
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Deletion limit set to {limit}",
+                priority="info"
+            )
         if limit <= 0:
-            await interaction.response.send_message("⚠️ Please provide a valid number greater than 0.", ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "⚠️ Please provide a valid number greater than 0.", ephemeral=True
+            )
             return
 
         # Load existing config or initialize a new one
@@ -223,7 +267,7 @@ class AutoDeleteCog(commands.Cog):
         for channel_id, hours in auto_delete_channels.items():
             self.schedule_auto_delete(int(channel_id), int(hours), deletion_limit=limit)
 
-        await interaction.response.send_message(
+        await interaction.response.send_message(  # noqa
             f"✅ Deletion limit set to {limit} messages per operation.", ephemeral=True
         )
 
