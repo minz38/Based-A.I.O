@@ -88,8 +88,10 @@ class AutoDeleteCog(commands.Cog):
                         )
                     else:
                         # Proceed to delete messages using purge
-                        await channel.purge(limit=deletion_limit * 2,
-                                            check=lambda m: not m.pinned and not m.author.bot)
+                        await channel.purge(
+                            limit=deletion_limit * 2,
+                            check=lambda m: not m.pinned and not m.author.bot and m.type == discord.MessageType.default
+                        )
 
                 except Exception as e:
                     print(f"Error deleting messages in {channel.name}: {e}")
