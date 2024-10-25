@@ -1,13 +1,11 @@
-import re
 import os
 import json
 import discord
-from discord import app_commands
 from discord.ext import commands
 from logger import LoggerManager
 from datetime import datetime
 from typing import Dict, Any
-from dependencies.youtube_handler import download_music, delete_temp_files
+
 
 # initialize logger
 logger = LoggerManager(name="Bot", level="INFO", log_file="logs/bot.log").get_logger()
