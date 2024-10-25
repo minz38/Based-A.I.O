@@ -87,6 +87,15 @@ class AutoDeleteCog(commands.Cog):
                             f" messages at once. Auto-delete operation aborted."
                         )
                     else:
+                        admin_log_cog = self.bot.get_cog("AdminLog")
+                        if admin_log_cog:
+                            await admin_log_cog.log_event(
+                                priority="warn",
+                                event_name="Auto-delete",
+                                event_status=f"Auto-deleted {len(messages_to_delete)} messages in {channel.name}.",
+                                guild_id=int(channel.guild.id),
+                            )
+
                         # Proceed to delete messages using purge
                         await channel.purge(
                             limit=deletion_limit * 2,

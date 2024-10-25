@@ -1,6 +1,7 @@
 import os
 import json
 import discord
+from datetime import datetime
 from discord import app_commands
 from discord.ext import commands
 from logger import LoggerManager
@@ -15,6 +16,18 @@ class AdminLog(commands.Cog):
         self.interaction = interaction
         self.log_channels: dict[discord.Guild.id, discord.TextChannel] = {}
 
+    @staticmethod
+    async def match_priority(priority: Literal["info", "warn", "error"]) -> discord.Color:
+        match priority:
+            case "info":
+                return discord.Color.green()
+            case "warn":
+                return discord.Color.orange()
+            case "error":
+                return discord.Color.red()
+            case _:
+                return discord.Color.default()
+
     async def log_interaction(self, interaction: discord.Interaction,
                               priority: Literal["info", "warn", "error"],
                               text: str | None = None) -> None:
@@ -22,16 +35,7 @@ class AdminLog(commands.Cog):
         if log_channel is None:
             return
 
-        match priority:
-            case "info":
-                color = discord.Color.green()
-            case "warn":
-                color = discord.Color.orange()
-            case "error":
-                color = discord.Color.red()
-            case _:
-                color = discord.Color.default()
-
+        color = await self.match_priority(priority)
         embed = discord.Embed(title=f"Bot Command Used")
         embed.colour = color
         embed.add_field(name="Command", value=f'/{interaction.command.name}', inline=True)
@@ -40,6 +44,25 @@ class AdminLog(commands.Cog):
             embed.add_field(name="Note", value=text, inline=False)
         embed.set_footer(text=f"Timestamp: {interaction.created_at}")
         await log_channel.send(embed=embed)
+
+    async def log_event(self, guild_id: int,
+                        priority: Literal["info", "warn", "error"],
+                        event_name: str, event_status: str = None) -> None:
+        log_channel = await self.get_admin_log_channel(guild_id)
+
+        if log_channel is None:
+            return
+
+        color = await self.match_priority(priority)
+        timestamp = datetime.now().strftime("%dd.%mm-%YYYY %H:%M")
+        embed = discord.Embed(title=f"Bot Command Used")
+        embed.colour = color
+        embed.add_field(name="Event", value=f'{event_name}', inline=True)
+        if event_status:
+            embed.add_field(name="Bot Event", value=event_status, inline=False)
+        embed.set_footer(text=f"Timestamp: {timestamp}")
+        await log_channel.send(embed=embed)
+        # TODO: Implement to auto_delete and VRChat Event handler
 
     async def get_admin_log_channel(self, guild_id: int) -> None | discord.TextChannel:
         with open(f"configs/guilds/{guild_id}.json", "r") as file:
