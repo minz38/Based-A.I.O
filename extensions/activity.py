@@ -16,8 +16,8 @@ class Inactivity(commands.Cog):
         self.bot: commands.Bot = bot
         self.voice_channel_join_times: dict = {}
         self.active_guilds: list[int] = []
-
-        self.excluded_roles: dict[int, list[int]] = {}  # New dictionary to store excluded roles per guild
+        self.excluded_roles: dict[int, list[int]] = {}
+        self.included_users: dict[int, list[int]] = {}  # New dictionary to store included users per guild
 
         # Ensure the activity folder exists
         if not os.path.exists('activity'):
@@ -32,17 +32,16 @@ class Inactivity(commands.Cog):
         if member.bot:
             return
 
-        # Get the excluded roles for the guild
         guild_id = member.guild.id
         excluded_roles = self.excluded_roles.get(guild_id, [])
+        included_users = self.included_users.get(guild_id, [])
 
-        # Check if member has any excluded roles
-        if any(role.id in excluded_roles for role in member.roles):
+        # Check if member has any excluded roles and is not explicitly included
+        if any(role.id in excluded_roles for role in member.roles) and member.id not in included_users:
             return  # Skip tracking for this member
 
         # User joins a voice channel
         if before.channel is None and after.channel is not None:
-            # Get the guild from the after state (since they just joined)
             time: datetime = datetime.datetime.now()
             self.voice_channel_join_times[member.id] = time
 
@@ -86,7 +85,7 @@ class Inactivity(commands.Cog):
                 json.dump(voice_data, f, indent=4)
 
     async def load_active_guilds(self):
-        """Load active guilds with voice tracking enabled and their excluded roles."""
+        """Load active guilds with voice tracking enabled, their excluded roles, and included users."""
         logger.info("Loading active guilds with voice tracking enabled.")
         for file in os.listdir('configs/guilds'):
             if file.endswith('.json') and not file.startswith('gs'):
@@ -104,6 +103,9 @@ class Inactivity(commands.Cog):
                     # Load excluded roles
                     excluded_roles = guild_config.get('voice_excluded_roles', [])
                     self.excluded_roles[guild_id] = excluded_roles
+                    # Load included users
+                    included_users = guild_config.get('voice_included_users', [])
+                    self.included_users[guild_id] = included_users
         logger.info(f"Total active guilds loaded: {len(self.active_guilds)}")
 
     @app_commands.command(name="vc_tracking", description="Setup the Voicechannel Tracking feature.")
@@ -207,6 +209,7 @@ class Inactivity(commands.Cog):
         guild = interaction.guild
         guild_id = guild.id
         excluded_roles = self.excluded_roles.get(guild_id, [])
+        included_users = self.included_users.get(guild_id, [])
 
         # Defer the interaction to prevent timeout
         await interaction.response.defer(thinking=True)  # noqa
@@ -228,10 +231,11 @@ class Inactivity(commands.Cog):
 
                 # Fetch channel history after the specified date
                 async for message in channel.history(after=past_date):
-                    # Skip messages from bots or excluded roles
+                    # Skip messages from bots or excluded roles unless the user is explicitly included
                     if message.author.bot:
                         continue
-                    if any(role.id in excluded_roles for role in message.author.roles):
+                    if (any(role.id in excluded_roles for role in message.author.roles) and
+                            message.author.id not in included_users):
                         continue
 
                     message_counter += 1
@@ -252,7 +256,8 @@ class Inactivity(commands.Cog):
         for member in guild.members:
             if member.bot:
                 continue
-            if any(role.id in excluded_roles for role in member.roles):
+            if (any(role.id in excluded_roles for role in member.roles) and
+                    member.id not in included_users):
                 continue
 
             last_message_time: datetime.datetime = last_message_list.get(member.id)
@@ -300,9 +305,11 @@ class Inactivity(commands.Cog):
     @app_commands.command(name="tracking_exclude", description="Manage roles to exclude from activity tracking.")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
-    @app_commands.choices(action=[app_commands.Choice(name="Add", value="add"),
-                                  app_commands.Choice(name="Remove", value="remove"),
-                                  app_commands.Choice(name="List", value="list")])
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Add", value="add"),
+        app_commands.Choice(name="Remove", value="remove"),
+        app_commands.Choice(name="List", value="list")
+    ])
     async def exclude_roles(self, interaction: discord.Interaction, action: str, role: discord.Role = None) -> None:
         """
         Manage roles to exclude from activity tracking.
@@ -364,6 +371,75 @@ class Inactivity(commands.Cog):
         else:
             await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")  # noqa
 
+    @app_commands.command(name="tracking_include", description="Manage users to include in activity tracking.")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(manage_guild=True)
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Add", value="add"),
+        app_commands.Choice(name="Remove", value="remove"),
+        app_commands.Choice(name="List", value="list")
+    ])
+    async def include_users(self, interaction: discord.Interaction, action: str, user: discord.User = None) -> None:
+        """
+        Manage users to include in activity tracking.
+        Actions: add, remove, list
+        """
+        logger.info(
+            f"Command: tracking_include used by {interaction.user.name}, action: {action}, user: {user}")
+
+        admin_log_cog = interaction.client.get_cog("AdminLog")
+        user_name = user.name if user else "None"
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction,
+                text=f"Tracking Include - {action} user: {user_name} for guild: "
+                     f"{interaction.guild.name}",
+                priority="info"
+            )
+        guild_id = interaction.guild.id
+
+        if action.lower() == "add":
+            if user is None:
+                await interaction.response.send_message("Please specify a user to add to the inclusion list.")  # noqa
+                return
+            included_users = self.included_users.get(guild_id, [])
+            if user.id not in included_users:
+                included_users.append(user.id)
+                self.included_users[guild_id] = included_users
+                # Save to guild config
+                await self.update_guild_config_included_users(guild_id, included_users)
+                await interaction.response.send_message(f"User {user.mention} added to the inclusion list.")  # noqa
+            else:
+                await interaction.response.send_message(f"User {user.mention} is already in the inclusion list.")  # noqa
+
+        elif action.lower() == "remove":
+            if user is None:
+                await interaction.response.send_message(  # noqa
+                    "Please specify a user to remove from the inclusion list.")
+                return
+            included_users = self.included_users.get(guild_id, [])
+            if user.id in included_users:
+                included_users.remove(user.id)
+                self.included_users[guild_id] = included_users
+                # Save to guild config
+                await self.update_guild_config_included_users(guild_id, included_users)
+                await interaction.response.send_message(f"User {user.mention} removed from the inclusion list.")  # noqa
+            else:
+                await interaction.response.send_message(f"User {user.mention} is not in the inclusion list.")  # noqa
+
+        elif action.lower() == "list":
+            included_users = self.included_users.get(guild_id, [])
+            if included_users:
+                user_mentions = [interaction.guild.get_member(user_id).mention for user_id in included_users if
+                                 interaction.guild.get_member(user_id)]
+                users_list = "\n".join(user_mentions)
+                await interaction.response.send_message(f"Included users:\n{users_list}")  # noqa
+            else:
+                await interaction.response.send_message("No users are currently included in tracking.")  # noqa
+
+        else:
+            await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")  # noqa
+
     async def update_guild_config_excluded_roles(self, guild_id: int, excluded_roles: list[int]) -> None:
         """Update the guild's config file with the new list of excluded roles."""
         config_file = f'configs/guilds/{guild_id}.json'
@@ -374,6 +450,19 @@ class Inactivity(commands.Cog):
             guild_config = {}
 
         guild_config['voice_excluded_roles'] = excluded_roles
+        with open(config_file, 'w') as f:
+            json.dump(guild_config, f, indent=4)
+
+    async def update_guild_config_included_users(self, guild_id: int, included_users: list[int]) -> None:
+        """Update the guild's config file with the new list of included users."""
+        config_file = f'configs/guilds/{guild_id}.json'
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                guild_config = json.load(f)
+        else:
+            guild_config = {}
+
+        guild_config['voice_included_users'] = included_users
         with open(config_file, 'w') as f:
             json.dump(guild_config, f, indent=4)
 
