@@ -92,7 +92,7 @@ class AutoDeleteCog(commands.Cog):
                             await admin_log_cog.log_event(
                                 priority="warn",
                                 event_name="Auto-delete",
-                                event_status=f"Auto-deleted {len(messages_to_delete)} messages in {channel.name}.",
+                                event_status=f"Auto-deleted {len(messages_to_delete)} messages in {channel.mention}",
                                 guild_id=int(channel.guild.id),
                             )
 

@@ -55,14 +55,13 @@ class AdminLog(commands.Cog):
 
         color = await self.match_priority(priority)
         timestamp = datetime.now().strftime("%dd.%mm-%YYYY %H:%M")
-        embed = discord.Embed(title=f"Bot Command Used")
+        embed = discord.Embed(title=f"Bot Event")
         embed.colour = color
-        embed.add_field(name="Event", value=f'{event_name}', inline=True)
+        embed.add_field(name="Event:", value=event_name, inline=True)
         if event_status:
-            embed.add_field(name="Bot Event", value=event_status, inline=False)
+            embed.add_field(name="Status:", value=event_status, inline=False)
         embed.set_footer(text=f"Timestamp: {timestamp}")
         await log_channel.send(embed=embed)
-        # TODO: Implement to auto_delete and VRChat Event handler
 
     async def get_admin_log_channel(self, guild_id: int) -> None | discord.TextChannel:
         with open(f"configs/guilds/{guild_id}.json", "r") as file:
