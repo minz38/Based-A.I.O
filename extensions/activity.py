@@ -295,7 +295,7 @@ class Inactivity(commands.Cog):
         else:
             await interaction.followup.send(content=f"No inactive users found in the last {days} days.")
 
-    @app_commands.command(name="vc_tracking_exclude", description="Manage roles to exclude from activity tracking.")
+    @app_commands.command(name="tracking_exclude", description="Manage roles to exclude from activity tracking.")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(action=[app_commands.Choice(name="Add", value="add"),
