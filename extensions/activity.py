@@ -17,7 +17,7 @@ class Inactivity(commands.Cog):
         self.voice_channel_join_times: dict = {}
         self.active_guilds: list[int] = []
         self.excluded_roles: dict[int, list[int]] = {}
-        self.included_users: dict[int, list[int]] = {}  # New dictionary to store included users per guild
+        self.included_users: dict[int, list[int]] = {}  # Dictionary to store included users per guild
 
         # Ensure the activity folder exists
         if not os.path.exists('activity'):
@@ -42,7 +42,7 @@ class Inactivity(commands.Cog):
 
         # User joins a voice channel
         if before.channel is None and after.channel is not None:
-            time: datetime = datetime.datetime.now()
+            time: datetime = datetime.datetime.now(datetime.timezone.utc)
             self.voice_channel_join_times[member.id] = time
 
         # User leaves the voice channel
@@ -51,8 +51,9 @@ class Inactivity(commands.Cog):
             join_time = self.voice_channel_join_times.pop(member.id, None)
 
             if join_time:
-                duration = int((datetime.datetime.now() - join_time).total_seconds())
+                duration = int((datetime.datetime.now(datetime.timezone.utc) - join_time).total_seconds())
                 await self.store_voice_times(guild_id=guild_id, member=member, time=duration)
+                await self.increment_voice_connections(guild_id=guild_id, member=member)  # Increment connection count
 
     async def store_voice_times(self, guild_id: int, member: Any, time: Any) -> None:
         if guild_id in self.active_guilds:
@@ -67,7 +68,7 @@ class Inactivity(commands.Cog):
                 voice_data: dict = {}
 
             user_id: str = str(member.id)  # Use the user ID as a string
-            date: str = datetime.datetime.now().strftime("%Y-%m")  # Get the current year and month in YYYY-MM
+            date: str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")  # Get the current year and month in YYYY-MM
 
             # If the user doesn't have an entry in the JSON, initialize it
             if user_id not in voice_data:
@@ -75,10 +76,40 @@ class Inactivity(commands.Cog):
 
             # If the user doesn't have an entry for the current month, initialize it
             if date not in voice_data[user_id]:
-                voice_data[user_id][date] = {"voice_times": 0}
+                voice_data[user_id][date] = {"voice_times": 0, "voicechannel_connections": 0}  # Initialize both fields
 
             # Add the duration to the existing time
             voice_data[user_id][date]["voice_times"] += time
+
+            # Save the updated data back to the file
+            with open(file_path, 'w') as f:
+                json.dump(voice_data, f, indent=4)
+
+    async def increment_voice_connections(self, guild_id: int, member: Any) -> None:
+        """Increment the voicechannel_connections counter for a user."""
+        if guild_id in self.active_guilds:
+            file_path: str = f'activity/{guild_id}.json'
+
+            # Load existing data from the file if it exists, or initialize an empty dictionary
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    voice_data = json.load(f)
+            else:
+                voice_data: dict = {}
+
+            user_id: str = str(member.id)
+            date: str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")  # Current year and month
+
+            # Initialize user data if not present
+            if user_id not in voice_data:
+                voice_data[user_id] = {}
+
+            # Initialize monthly data if not present
+            if date not in voice_data[user_id]:
+                voice_data[user_id][date] = {"voice_times": 0, "voicechannel_connections": 0}
+
+            # Increment the connection count
+            voice_data[user_id][date]["voicechannel_connections"] += 1
 
             # Save the updated data back to the file
             with open(file_path, 'w') as f:
@@ -262,8 +293,9 @@ class Inactivity(commands.Cog):
 
             last_message_time: datetime.datetime = last_message_list.get(member.id)
             if not last_message_time or last_message_time < past_date:
-                # Get the total voice time for this user over the past {days}
+                # Get the total voice time and connections for this user over the past {days}
                 total_voice_seconds: int = 0
+                total_connections: int = 0
                 user_id = str(member.id)
 
                 if user_id in voice_times:
@@ -276,20 +308,21 @@ class Inactivity(commands.Cog):
                                                                              tzinfo=datetime.timezone.utc)
 
                         # Check if the activity date falls within the last {days}
-                        if activity_date >= past_date.replace(day=1):  # Compare with the first day of the month
+                        if activity_date >= past_date.replace(day=1):
                             total_voice_seconds += voice_data.get("voice_times", 0)
+                            total_connections += voice_data.get("voicechannel_connections", 0)
 
                 # Convert total voice time to hours and minutes
                 hours, remainder = divmod(total_voice_seconds, 3600)
                 minutes = remainder // 60
 
-                inactive_users.append((member, hours, minutes))
+                inactive_users.append((member, hours, minutes, total_connections))
 
         # Create the embed
         if inactive_users:
             mention_member_list: str = "\n".join([
-                f"<@{member.id}> - Voice Time: {hours}h {minutes}m"
-                for member, hours, minutes in inactive_users
+                f"<@{member.id}> - Voice Time: {hours}h {minutes}m | Connections: {connections}"
+                for member, hours, minutes, connections in inactive_users
             ])
             embed = discord.Embed(title=f"List of Inactive Users in the last {days} days",
                                   description=f"Processed **{message_counter}** messages in **{channel_counter}** "
