@@ -88,7 +88,7 @@ class AutoDeleteCog(commands.Cog):
                         )
                     else:
                         # Proceed to delete messages using purge
-                        await channel.purge(limit={deletion_limit * 2},
+                        await channel.purge(limit=deletion_limit * 2,
                                             check=lambda m: not m.pinned and not m.author.bot)
 
                 except Exception as e:
