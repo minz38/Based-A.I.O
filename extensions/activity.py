@@ -120,7 +120,7 @@ class Inactivity(commands.Cog):
         if admin_log_cog:
             await admin_log_cog.log_interaction(
                 interaction,
-                text=f"Voice Tracking {['Enabled', 'Disabled'][operation-1]} for guild: {interaction.guild.name})",
+                text=f"Voice Tracking {['Enabled', 'Disabled'][operation - 1]} for guild: {interaction.guild.name})",
                 priority="info"
             )
 
@@ -142,9 +142,10 @@ class Inactivity(commands.Cog):
                     with open(config_file, 'w') as f:
                         json.dump(guild_config, f, indent=4)
                     logger.info(f"Voice tracking enabled for guild: {interaction.guild.name} ({guild_id})")
-                    await interaction.response.send_message(content="Voice tracking enabled successfully.")
+                    await interaction.response.send_message(  # noqa
+                        content="Voice tracking enabled successfully.")
                 else:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         content="Voice tracking is already enabled for this guild.")
                     logger.warning(f"Voice tracking already enabled for guild: {interaction.guild.name} ({guild_id})")
 
@@ -161,18 +162,19 @@ class Inactivity(commands.Cog):
                             with open(config_file, 'w') as file:
                                 json.dump(guild_config, file, indent=4)
                     logger.info(f"Voice tracking disabled for guild: {interaction.guild.name} ({guild_id})")
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         content="Voice tracking disabled successfully.")
                 else:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         content="Voice tracking is already disabled for this guild.")
                     logger.warning(f"Voice tracking already disabled for guild: {interaction.guild.name} ({guild_id})")
 
             case 2:  # Status
                 if int(interaction.guild_id) in self.active_guilds:
-                    await interaction.response.send_message(content="Voice tracking is enabled for this guild.")
+                    await interaction.response.send_message(  # noqa
+                        content="Voice tracking is enabled for this guild.")
                 else:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         content="Voice tracking is disabled for this guild.")
 
             case _:
@@ -207,7 +209,7 @@ class Inactivity(commands.Cog):
         excluded_roles = self.excluded_roles.get(guild_id, [])
 
         # Defer the interaction to prevent timeout
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer(thinking=True)  # noqa
 
         # Load voice activity data from the JSON file for the guild
         voice_data_file: str = f'activity/{guild_id}.json'
@@ -314,7 +316,7 @@ class Inactivity(commands.Cog):
         if admin_log_cog:
             await admin_log_cog.log_interaction(
                 interaction,
-                text=f"VC Tracking Exclude - {action} role: {role_name} for guild: "
+                text=f"Tracking Exclude - {action} role: {role_name} for guild: "
                      f"{interaction.guild.name}",
                 priority="info"
             )
@@ -322,7 +324,7 @@ class Inactivity(commands.Cog):
 
         if action.lower() == "add":
             if role is None:
-                await interaction.response.send_message("Please specify a role to add to the exclusion list.")
+                await interaction.response.send_message("Please specify a role to add to the exclusion list.")  # noqa
                 return
             excluded_roles = self.excluded_roles.get(guild_id, [])
             if role.id not in excluded_roles:
@@ -330,13 +332,14 @@ class Inactivity(commands.Cog):
                 self.excluded_roles[guild_id] = excluded_roles
                 # Save to guild config
                 await self.update_guild_config_excluded_roles(guild_id, excluded_roles)
-                await interaction.response.send_message(f"Role {role.name} added to the exclusion list.")
+                await interaction.response.send_message(f"Role {role.name} added to the exclusion list.")  # noqa
             else:
-                await interaction.response.send_message(f"Role {role.name} is already in the exclusion list.")
+                await interaction.response.send_message(f"Role {role.name} is already in the exclusion list.")  # noqa
 
         elif action.lower() == "remove":
             if role is None:
-                await interaction.response.send_message("Please specify a role to remove from the exclusion list.")
+                await interaction.response.send_message(  # noqa
+                    "Please specify a role to remove from the exclusion list.")
                 return
             excluded_roles = self.excluded_roles.get(guild_id, [])
             if role.id in excluded_roles:
@@ -344,22 +347,22 @@ class Inactivity(commands.Cog):
                 self.excluded_roles[guild_id] = excluded_roles
                 # Save to guild config
                 await self.update_guild_config_excluded_roles(guild_id, excluded_roles)
-                await interaction.response.send_message(f"Role {role.name} removed from the exclusion list.")
+                await interaction.response.send_message(f"Role {role.name} removed from the exclusion list.")  # noqa
             else:
-                await interaction.response.send_message(f"Role {role.name} is not in the exclusion list.")
+                await interaction.response.send_message(f"Role {role.name} is not in the exclusion list.")  # noqa
 
         elif action.lower() == "list":
             excluded_roles = self.excluded_roles.get(guild_id, [])
             if excluded_roles:
-                role_mentions = [interaction.guild.get_role(role_id).mention for role_id in excluded_roles if
+                role_mentions = [interaction.guild.get_role(role_id).name for role_id in excluded_roles if
                                  interaction.guild.get_role(role_id)]
                 roles_list = "\n".join(role_mentions)
-                await interaction.response.send_message(f"Excluded roles:\n{roles_list}")
+                await interaction.response.send_message(f"Excluded roles:\n{roles_list}")  # noqa
             else:
-                await interaction.response.send_message("No roles are currently excluded from tracking.")
+                await interaction.response.send_message("No roles are currently excluded from tracking.")  # noqa
 
         else:
-            await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")
+            await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")  # noqa
 
     async def update_guild_config_excluded_roles(self, guild_id: int, excluded_roles: list[int]) -> None:
         """Update the guild's config file with the new list of excluded roles."""
