@@ -143,7 +143,7 @@ class ArchiveCog(commands.Cog):
                     temp_member_overwrites.append(member.id)
 
             # Move the channel to the archive category
-            await channel.edit(category=archive_category)  # todo why is that argument unexpected
+            await channel.edit(category=archive_category)  # noqa
 
             # Prepare data for restoring
             previous_permission_data = []
