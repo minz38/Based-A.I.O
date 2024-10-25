@@ -221,14 +221,14 @@ class AutoDeleteCog(commands.Cog):
                         message += f"🔹 {channel.mention} - Every {hrs} hour(s)\n"
                     else:
                         message += f"🔹 Channel ID {chan_id} (Not Found) - Every {hrs} hour(s)\n"
-                await interaction.response.send_message(message, ephemeral=True)  # noqa
+                await interaction.response.send_message(message, ephemeral=False)  # noqa
             else:
                 await interaction.response.send_message(  # noqa
-                    "📄 No channels have auto-delete enabled.", ephemeral=True
+                    "📄 No channels have auto-delete enabled.", ephemeral=False
                 )
         else:
             await interaction.response.send_message(  # noqa
-                "📄 No channels have auto-delete enabled.", ephemeral=True
+                "📄 No channels have auto-delete enabled.", ephemeral=False
             )
 
     # Subcommand to set the deletion limit
