@@ -4,7 +4,7 @@ from discord import app_commands
 from logger import LoggerManager
 
 logger = LoggerManager(name="StatusChanger", level="INFO", log_file="logs/StatusChanger.log").get_logger()
-
+# push test
 
 class PresenceCog(commands.Cog):
     def __init__(self, bot):
