@@ -87,8 +87,8 @@ class ProceedToAdditionalModalButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         # Show the second modal for additional settings
-        await interaction.response.send_modal(AdditionalSettingsModal(
-            guild_id=self.guild_id,  # noqa
+        await interaction.response.send_modal(AdditionalSettingsModal(  # noqa
+            guild_id=self.guild_id,
             initial_data=self.initial_data))
 
 
@@ -126,8 +126,8 @@ class AdditionalSettingsModal(discord.ui.Modal, title="Enter Additional Settings
         logger.info(f"Stored additional settings for guild {self.guild_id}")
 
         # Respond to the user
-        await interaction.response.send_message(
-            "Additional settings have been successfully stored!",  # noqa
+        await interaction.response.send_message(  # noqa
+            "Additional settings have been successfully stored!",
             ephemeral=True)
 
 
@@ -142,7 +142,7 @@ class ConfirmView(discord.ui.View):
     async def proceed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle the 'Proceed' button click."""
         # Show the VRChat credentials modal when user proceeds
-        await interaction.response.send_modal(VrchatCredentialsModal(
+        await interaction.response.send_modal(VrchatCredentialsModal(  # noqa
             guild_id=self.guild_id))  # noqa
 
         logger.info(f"User {interaction.user} proceeded to input credentials for guild {self.guild_id}")
@@ -152,8 +152,10 @@ class ConfirmView(discord.ui.View):
     async def abort_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle the 'Abort' button click."""
         # Inform the user that the process has been canceled
-        await interaction.response.send_message(
-            "Process aborted. No credentials were saved.", ephemeral=True)  # noqa
+        await interaction.response.send_message(  # noqa
+            "Process aborted. No credentials were saved.",
+            ephemeral=True
+        )
         logger.info(f"User {interaction.user} aborted the process for guild {self.guild_id}")
         self.stop()  # Stops the view from listening for more button clicks
 
@@ -171,12 +173,12 @@ class ConfirmView(discord.ui.View):
             with open(guild_config_file, 'w') as f:
                 json.dump(data, f, indent=4)
             logger.info(f"Deleted VRChat credentials for guild {self.guild_id}")
-            await interaction.response.send_message(
-                content="VRChat credentials have been successfully deleted.", ephemeral=True)  # noqa
+            await interaction.response.send_message(  # noqa
+                content="VRChat credentials have been successfully deleted.", ephemeral=True)
         else:
             # If no credentials exist, notify the user
-            await interaction.response.send_message(
-                content="No VRChat credentials found to delete.", ephemeral=True)  # noqa
+            await interaction.response.send_message(  # noqa
+                content="No VRChat credentials found to delete.", ephemeral=True)
 
 
 # Create the cog
@@ -192,7 +194,8 @@ class VrchatApi(commands.Cog):
             logger.info(f"Deleted folder on VRC-COG initialization: {TEMP_VRC_PATH}")
 
     # Helper methods for handling temp data
-    def load_temp_data(self, guild_id):
+    @staticmethod
+    def load_temp_data(guild_id):
         temp_file = f"temp/vrc/{guild_id}.json"
         if os.path.exists(temp_file):
             with open(temp_file, "r") as f:
@@ -201,7 +204,8 @@ class VrchatApi(commands.Cog):
             temp_data = {}
         return temp_data
 
-    def save_temp_data(self, guild_id, temp_data):
+    @staticmethod
+    def save_temp_data(guild_id, temp_data):
         temp_file = f"temp/vrc/{guild_id}.json"
         os.makedirs(os.path.dirname(temp_file), exist_ok=True)
         with open(temp_file, "w") as f:
@@ -262,7 +266,7 @@ class VrchatApi(commands.Cog):
                             try:
                                 msg = await channel.fetch_message(int(message_id))
                                 embed = msg.embeds[0]
-                                embed.colour = discord.Color.grey()
+                                embed.colour = discord.Color.light_gray()
                                 embed.set_footer(
                                     text="This request was responded to via VRChat or canceled by the user.")
                                 await msg.edit(
@@ -270,7 +274,8 @@ class VrchatApi(commands.Cog):
                                     embed=embed, view=None)
                                 logger.info(f"Edited message {message_id} for stale invite request {request_id}")
                             except Exception as e:
-                                logger.error(f"Failed to edit message {message_id} for invite request {request_id}: {e}")
+                                logger.error(
+                                    f"Failed to edit message {message_id} for invite request {request_id}: {e}")
                             # Remove the request_id from temp_data
                             del temp_data[request_id]
                     # Save temp_data
@@ -292,7 +297,8 @@ class VrchatApi(commands.Cog):
                             embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
                             embed.add_field(
                                 name="Profile URL",
-                                value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/home/user/{user_id}>)",
+                                value=f"[{profile_data['Display Name']}'s Profile]"
+                                      f"(<https://vrchat.com/home/user/{user_id}>)",
                                 inline=False)
                             channel = self.bot.get_channel(int(vrc_handler.moderator_channel_id))
                             msg = await channel.send(embed=embed)
@@ -379,11 +385,11 @@ class VrchatApi(commands.Cog):
             case "check_login_status":
                 if vrc_handler:
                     # Add logic to check the current status using vrc_handler
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         f"Logged in as {vrc_handler.current_user.display_name}",
                         ephemeral=True)
                 else:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         "The bot is not logged in yet for this guild.", ephemeral=True)
 
             case "login":
@@ -394,7 +400,7 @@ class VrchatApi(commands.Cog):
                 if vrc_handler:
                     success = vrc_handler.logout()
                     if success:
-                        await interaction.response.send_message(
+                        await interaction.response.send_message(  # noqa
                             "Logged out successfully.", ephemeral=True)
                         self.vrc_handlers.pop(guild_id, None)
                         if guild_id in self.active_guilds:
@@ -403,17 +409,19 @@ class VrchatApi(commands.Cog):
                             if self.my_background_task.is_running():
                                 self.my_background_task.stop()
                                 logger.info("Background task has been successfully stopped.")
-                        logger.info(f"User {interaction.user} logged out the VRC Bot for guild {guild_id} & stopped the background task if needed.")
+                        logger.info(
+                            f"User {interaction.user} logged out the VRC Bot for guild {guild_id} &"
+                            f" stopped the background task if needed.")
                     else:
-                        await interaction.response.send_message(
+                        await interaction.response.send_message(  # noqa
                             "Failed to log out. No active session or an error occurred.", ephemeral=True)
                 else:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         "You are already logged out for this guild.", ephemeral=True)
 
             case "get_invite_requests":
                 if vrc_handler:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         "Fetching invite requests...", ephemeral=True)
                     # Fetch invite requests using vrc_handler
                     invite_requests = vrc_handler.get_group_join_requests()
@@ -434,7 +442,8 @@ class VrchatApi(commands.Cog):
                                 embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
                                 embed.add_field(
                                     name="Profile URL",
-                                    value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/home/user/{user_id}>)",
+                                    value=f"[{profile_data['Display Name']}'s Profile]"
+                                          f"(<https://vrchat.com/home/user/{user_id}>)",
                                     inline=False)
                                 msg: discord.Message = await interaction.followup.send(
                                     embed=embed, ephemeral=False)
@@ -461,34 +470,47 @@ class VrchatApi(commands.Cog):
                         await interaction.followup.send(
                             "No new invite requests found.", ephemeral=True)
                 else:
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         "You need to log in first for this guild.", ephemeral=True)
 
             case 'start_background_task':
                 if guild_id in self.active_guilds:
-                    await interaction.response.send_message("The background task is already running for this guild.", ephemeral=True)
+                    await interaction.response.send_message(  # noqa
+                        "The background task is already running for this guild.",
+                        ephemeral=True
+                    )
                 else:
                     self.active_guilds.add(guild_id)
                     if not self.my_background_task.is_running():
                         self.my_background_task.start()
-                    await interaction.response.send_message("Started the background task for this guild.", ephemeral=True)
+                    await interaction.response.send_message(  # noqa
+                        "Started the background task for this guild.",
+                        ephemeral=True
+                    )
 
             case 'stop_background_task':
                 if guild_id in self.active_guilds:
                     self.active_guilds.remove(guild_id)
-                    await interaction.response.send_message("Stopped the background task for this guild.", ephemeral=True)
+                    await interaction.response.send_message(  # noqa
+                        "Stopped the background task for this guild.",
+                        ephemeral=True
+                    )
                     if not self.active_guilds:
                         # No more guilds are active, stop the task
                         if self.my_background_task.is_running():
                             self.my_background_task.stop()
                             logger.info("Background task has been successfully stopped.")
                 else:
-                    await interaction.response.send_message("The background task is not running for this guild.", ephemeral=True)
+                    await interaction.response.send_message(  # noqa
+                        "The background task is not running for this guild.",
+                        ephemeral=True
+                    )
 
             case _:
-                await interaction.response.send_message(
+                await interaction.response.send_message(  # noqa
                     "Invalid operation. Please choose from the options provided.",
-                    ephemeral=True)
+                    ephemeral=True
+                )
 
     async def vrc_bot_login(self, interaction: discord.Interaction):
         """Login the bot using VRChat API."""
@@ -499,15 +521,19 @@ class VrchatApi(commands.Cog):
             self.vrc_handlers[guild_id] = vrc_handler
 
             # If successful, respond to the interaction
-            await interaction.response.send_message(
-                f"Logged in as {vrc_handler.current_user.display_name}", ephemeral=True)  # noqa
+            await interaction.response.send_message(  # noqa
+                f"Logged in as {vrc_handler.current_user.display_name}",  # noqa
+                ephemeral=True
+            )
             logger.info(f"VRChat API logged in for guild {guild_id}")
 
         except Exception as e:
             # If any error occurs during the login, notify the user
             logger.error(f"Failed to log in to VRChat API: {e}")
-            await interaction.response.send_message(
-                "Failed to log in. Please check the logs for more details.", ephemeral=True)
+            await interaction.response.send_message(  # noqa
+                "Failed to log in. Please check the logs for more details.",
+                ephemeral=True
+            )
 
 
 # InviteRequestViewer class
