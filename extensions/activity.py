@@ -139,7 +139,7 @@ class Inactivity(commands.Cog):
                     self.included_users[guild_id] = included_users
         logger.info(f"Total active guilds loaded: {len(self.active_guilds)}")
 
-    @app_commands.command(name="vc_tracking", description="Setup the Voicechannel Tracking feature.")
+    @app_commands.command(name="tracking_setup", description="Setup the voice channel Tracking feature.")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(operation=[
@@ -213,7 +213,7 @@ class Inactivity(commands.Cog):
             case _:
                 raise ValueError("Invalid operation. Please choose 'Enable' or 'Disable'.")
 
-    @app_commands.command(name="inactivity_check", description="List inactive users.")
+    @app_commands.command(name="inactivity_check", description="List inactive users. (tracking)")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(days=[
@@ -346,7 +346,8 @@ class Inactivity(commands.Cog):
         else:
             await interaction.followup.send(content=f"No inactive users found in the last {days} days.")
 
-    @app_commands.command(name="tracking_exclude", description="Manage roles to exclude from activity tracking.")
+    @app_commands.command(name="tracking_roles",
+                          description="Mange which roles should be excluded from the activity tracking.")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(action=[
@@ -415,7 +416,7 @@ class Inactivity(commands.Cog):
         else:
             await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")  # noqa
 
-    @app_commands.command(name="tracking_include", description="Manage users to include in activity tracking.")
+    @app_commands.command(name="tracking_users", description="Include users to the activity tracking manually.")
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(action=[
