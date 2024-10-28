@@ -290,16 +290,20 @@ class VrchatApi(commands.Cog):
                                 message_id=None):
                             user_id = request['requester_id']
                             profile_data = vrc_handler.get_user_profile(user_id)
+
                             embed = discord.Embed(color=discord.Color.blue())
-                            embed.title = f"{profile_data['Display Name']}"
-                            embed.description = "Requests to join the VRChat group"
-                            embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
-                            embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
+                            embed.title = f"❔{profile_data['Display Name']}"
+                            embed.description = "**Requests to join the VRChat group**"
+                            embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])  # todo fetch alternative thumbnail if user has no vrc+
+                            # Todo remove empty lines from BIO before embedding it
+                            # embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
                             embed.add_field(
                                 name="Profile URL",
                                 value=f"[{profile_data['Display Name']}'s Profile]"
                                       f"(<https://vrchat.com/home/user/{user_id}>)",
-                                inline=False)
+                                inline=False
+                            )
+
                             channel = self.bot.get_channel(int(vrc_handler.moderator_channel_id))
                             msg = await channel.send(embed=embed)
 
@@ -318,7 +322,8 @@ class VrchatApi(commands.Cog):
                                 moderator_name=None,
                                 message_id=msg.id,
                                 vrchat_api_cog=self,
-                                request_id=request['request_id'])
+                                request_id=request['request_id']
+                            )
 
                             # Edit the message with the view
                             await msg.edit(view=view)
@@ -553,7 +558,7 @@ class InviteRequestViewer(discord.ui.View):
 
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     @app_commands.checks.has_permissions(manage_messages=True)
-    async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def invite_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         logger.info(f"Accepting VRC invite request by: {interaction.user.name}")
         if self.vrc_handler.handle_request(
                 user_id=self.user_id,
@@ -563,9 +568,12 @@ class InviteRequestViewer(discord.ui.View):
 
             msg = await interaction.channel.fetch_message(self.message_id)
             embed = msg.embeds[0]
+            # remove the emoji and use the name from the embed title as the username
+            username = msg.embeds[0].title.split("(")[0].strip()
+            embed.title = f"✔️ {username}"
             embed.colour = discord.Color.green()
-            embed.set_footer(text=f"Accepted by {interaction.user.name}")
-            accept_message = f"The user **{self.user_name}** has been accepted by **{interaction.user.name}**"
+            embed.set_footer(text=f"Accepted by {interaction.user.name}", icon_url=interaction.user.avatar.url)
+            accept_message = f"The user **{username}** has been accepted by **{interaction.user.name}**"
             await msg.edit(content=accept_message, view=None, embed=embed)
 
             # Remove the request from temp_data
@@ -588,9 +596,11 @@ class InviteRequestViewer(discord.ui.View):
 
             msg = await interaction.channel.fetch_message(self.message_id)
             embed = msg.embeds[0]
+            username = msg.embeds[0].title.split("(")[0].strip()
+            embed.title = f"❌ {username}" # todo fix the username display
             embed.colour = discord.Color.red()
-            embed.set_footer(text=f"Rejected by {interaction.user.name}")
-            reject_message = f"The user **{self.user_name}** has been rejected by **{interaction.user.name}**"
+            embed.set_footer(text=f"Rejected by {interaction.user.name}", icon_url=interaction.user.avatar.url)
+            reject_message = f"The user **{username}** has been rejected by **{interaction.user.name}**"
             await msg.edit(content=reject_message, view=None, embed=embed)
 
             # Remove the request from temp_data
@@ -613,10 +623,12 @@ class InviteRequestViewer(discord.ui.View):
 
             msg = await interaction.channel.fetch_message(self.message_id)
             embed = msg.embeds[0]
+            username = msg.embeds[0].title.split("(")[0].strip()
+            embed.title = f"🚫 {username}"
             embed.colour = discord.Color.red()
-            embed.set_footer(
-                text=f"Rejected & Blocked from further requests by {interaction.user.name}")
-            reject_message = f"The user **{self.user_name}** has been rejected and blocked by **{interaction.user.name}**"
+            embed.set_footer(text=f"Rejected & Blocked by {interaction.user.name}",
+                             icon_url=interaction.user.avatar.url)
+            reject_message = f"The user **{username}** has been rejected and blocked by **{interaction.user.name}**"
             await msg.edit(content=reject_message, view=None, embed=embed)
 
             # Remove the request from temp_data
