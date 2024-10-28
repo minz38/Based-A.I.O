@@ -321,13 +321,28 @@ class Inactivity(commands.Cog):
         # Create the embed
         if inactive_users:
             mention_member_list: str = "\n".join([
-                f"<@{member.id}> - Voice Time: {hours}h {minutes}m | Connections: {connections}"
+                f"<@{member.id}> - ⏳ {hours}h {minutes}m | 🔄 {connections}"
+                if hours > 0 or minutes > 0 or connections > 0
+                else f"<@{member.id}>🔴 - ⏳ {hours}h {minutes}m | 🔄 {connections}"
                 for member, hours, minutes, connections in inactive_users
             ])
+            included_roles_str: str = ", ".join([f"<@&{role.id}>" for role in guild.roles if role.id in excluded_roles])
+            included_users_str: str = ", ".join([f"<@{user.id}>" for user in included_users])
             embed = discord.Embed(title=f"List of Inactive Users in the last {days} days",
-                                  description=f"Processed **{message_counter}** messages in **{channel_counter}** "
-                                              f"channels and found **{len(inactive_users)}** users who haven't sent "
-                                              f"a message in the last **{days}** days.",
+                                  # description=f"Processed **{message_counter}** messages in **{channel_counter}** "
+                                  #             f"channels and found **{len(inactive_users)}** users who haven't sent "
+                                  #             f"a message in the last **{days}** days.",
+                                  description=f'''
+                                  Tracked roles: {included_roles_str}\n 
+                                  Tracked users: {included_users_str}\n 
+                                  \n
+                                  This table contains only the users who have not sent a message in the last {days} 
+                                  days. A user is marked with 🔴 if there is no voice channel activity recorded in the 
+                                  selected time frame. 
+                                  \n
+                                  ⏳ = Total time in voice channels.
+                                  🔄 = Total number of joined voice channels.
+                                  ''',
                                   color=discord.Color.blue())
             embed.add_field(name="Inactive Users", value=mention_member_list, inline=False)
             embed.set_footer(text=f"Created by {interaction.user.name}")
