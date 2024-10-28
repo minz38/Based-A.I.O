@@ -142,8 +142,8 @@ class ConfirmView(discord.ui.View):
     async def proceed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle the 'Proceed' button click."""
         # Show the VRChat credentials modal when user proceeds
-        await interaction.response.send_modal(# noqa
-            VrchatCredentialsModal(guild_id=self.guild_id))
+        await interaction.response.send_modal(VrchatCredentialsModal(
+            guild_id=self.guild_id))  # noqa
 
         logger.info(f"User {interaction.user} proceeded to input credentials for guild {self.guild_id}")
         self.stop()  # Stops the view from listening for more button clicks
@@ -152,8 +152,8 @@ class ConfirmView(discord.ui.View):
     async def abort_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle the 'Abort' button click."""
         # Inform the user that the process has been canceled
-        await interaction.response.send_message( # noqa
-            "Process aborted. No credentials were saved.", ephemeral=True)
+        await interaction.response.send_message(
+            "Process aborted. No credentials were saved.", ephemeral=True)  # noqa
         logger.info(f"User {interaction.user} aborted the process for guild {self.guild_id}")
         self.stop()  # Stops the view from listening for more button clicks
 
@@ -183,8 +183,8 @@ class ConfirmView(discord.ui.View):
 class VrchatApi(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.vrc_handler = None
-        self.guild_id = None
+        self.vrc_handlers = {}  # Maps guild IDs to vrc_handler instances
+        self.active_guilds = set()  # Set of guild IDs where listener is active
 
         # Delete the temp/vrc folder if it exists
         if os.path.exists(TEMP_VRC_PATH):
@@ -229,97 +229,103 @@ class VrchatApi(commands.Cog):
             logger.info(f"Updated VRC temporary file for guild {guild_id}")
             return True
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=2)
     async def my_background_task(self):
-        # Ensure that the bot is logged in before running the task
-        if self.vrc_handler is not None:
-            # Fetch invite requests using self.vrc_handler
-            invite_requests = self.vrc_handler.get_group_join_requests()
-            if not invite_requests:
-                invite_requests = []
-            current_request_ids = [request['request_id'] for request in invite_requests]
+        for guild_id in list(self.active_guilds):  # Copy the set to avoid modification during iteration
+            vrc_handler = self.vrc_handlers.get(guild_id)
+            if vrc_handler is None:
+                logger.warning(f"No VRC handler for guild {guild_id}, skipping.")
+                continue
+            # Now process the invite requests for this guild
+            try:
+                invite_requests = vrc_handler.get_group_join_requests()
+                if not invite_requests:
+                    invite_requests = []
+                current_request_ids = [request['request_id'] for request in invite_requests]
 
-            # Load temp_data
-            temp_data = self.load_temp_data(self.guild_id)
-            tracked_request_ids = list(temp_data.keys())
+                # Load temp_data
+                temp_data = self.load_temp_data(guild_id)
+                tracked_request_ids = list(temp_data.keys())
 
-            # Find request_ids that are in temp_data but not in current_request_ids
-            stale_request_ids = [rid for rid in tracked_request_ids if rid not in current_request_ids]
+                # Find request_ids that are in temp_data but not in current_request_ids
+                stale_request_ids = [rid for rid in tracked_request_ids if rid not in current_request_ids]
 
-            # Process stale invite requests
-            if stale_request_ids:
-                channel_id = int(self.vrc_handler.moderator_channel_id)
-                channel = self.bot.get_channel(channel_id)
-                if not channel:
-                    logger.warning(f"Cannot find channel with ID {channel_id}")
-                else:
-                    for request_id in stale_request_ids:
-                        message_id = temp_data[request_id]
-                        try:
-                            msg = await channel.fetch_message(int(message_id))
-                            embed = msg.embeds[0]
-                            embed.colour = discord.Color.light_gray()
-                            embed.set_footer(
-                                text="This request was responded to via VRChat or canceled by the user.")
-                            await msg.edit(
-                                content="This invite request is no longer active.",
-                                embed=embed, view=None)
-                            logger.info(f"Edited message {message_id} for stale invite request {request_id}")
-                        except Exception as e:
-                            logger.error(f"Failed to edit message {message_id} for invite request {request_id}: {e}")
-                        # Remove the request_id from temp_data
-                        del temp_data[request_id]
-                # Save temp_data
-                self.save_temp_data(self.guild_id, temp_data)
+                # Process stale invite requests
+                if stale_request_ids:
+                    channel_id = int(vrc_handler.moderator_channel_id)
+                    channel = self.bot.get_channel(channel_id)
+                    if not channel:
+                        logger.warning(f"Cannot find channel with ID {channel_id}")
+                    else:
+                        for request_id in stale_request_ids:
+                            message_id = temp_data[request_id]
+                            try:
+                                msg = await channel.fetch_message(int(message_id))
+                                embed = msg.embeds[0]
+                                embed.colour = discord.Color.grey()
+                                embed.set_footer(
+                                    text="This request was responded to via VRChat or canceled by the user.")
+                                await msg.edit(
+                                    content="This invite request is no longer active.",
+                                    embed=embed, view=None)
+                                logger.info(f"Edited message {message_id} for stale invite request {request_id}")
+                            except Exception as e:
+                                logger.error(f"Failed to edit message {message_id} for invite request {request_id}: {e}")
+                            # Remove the request_id from temp_data
+                            del temp_data[request_id]
+                    # Save temp_data
+                    self.save_temp_data(guild_id, temp_data)
 
-            # Now process new invite requests
-            if invite_requests:
-                for request in invite_requests:
-                    if self.track_invite_requests(
-                            guild_id=self.guild_id,
-                            request_id=request['request_id'],
-                            message_id=None):
-                        user_id = request['requester_id']
-                        profile_data = self.vrc_handler.get_user_profile(user_id)
-                        embed = discord.Embed(color=discord.Color.blue())
-                        embed.title = f"{profile_data['Display Name']}"
-                        embed.description = "Requests to join the VRChat group"
-                        embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
-                        embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
-                        embed.add_field(
-                            name="Profile URL",
-                            value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/home/user/{user_id}>)",
-                            inline=False)
-                        channel = self.bot.get_channel(int(self.vrc_handler.moderator_channel_id))
-                        msg = await channel.send(embed=embed)
+                # Now process new invite requests
+                if invite_requests:
+                    for request in invite_requests:
+                        if self.track_invite_requests(
+                                guild_id=guild_id,
+                                request_id=request['request_id'],
+                                message_id=None):
+                            user_id = request['requester_id']
+                            profile_data = vrc_handler.get_user_profile(user_id)
+                            embed = discord.Embed(color=discord.Color.blue())
+                            embed.title = f"{profile_data['Display Name']}"
+                            embed.description = "Requests to join the VRChat group"
+                            embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
+                            embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
+                            embed.add_field(
+                                name="Profile URL",
+                                value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/home/user/{user_id}>)",
+                                inline=False)
+                            channel = self.bot.get_channel(int(vrc_handler.moderator_channel_id))
+                            msg = await channel.send(embed=embed)
 
-                        # Add message to the tracked_invite_requests list
-                        self.track_invite_requests(
-                            guild_id=self.guild_id,
-                            request_id=request['request_id'],
-                            message_id=msg.id)
+                            # Add message to the tracked_invite_requests list
+                            self.track_invite_requests(
+                                guild_id=guild_id,
+                                request_id=request['request_id'],
+                                message_id=msg.id)
 
-                        # Pass message.id to the view
-                        view = InviteRequestViewer(
-                            guild_id=self.guild_id,
-                            vrc_handler=self.vrc_handler,
-                            user_id=user_id,
-                            user_name=profile_data['Display Name'],
-                            moderator_name=None,
-                            message_id=msg.id,
-                            vrchat_api_cog=self,
-                            request_id=request['request_id'])
+                            # Pass message.id to the view
+                            view = InviteRequestViewer(
+                                guild_id=guild_id,
+                                vrc_handler=vrc_handler,
+                                user_id=user_id,
+                                user_name=profile_data['Display Name'],
+                                moderator_name=None,
+                                message_id=msg.id,
+                                vrchat_api_cog=self,
+                                request_id=request['request_id'])
 
-                        # Edit the message with the view
-                        await msg.edit(view=view)
-        else:
-            logger.warning("Bot is not logged in, stopping the task.")
-            self.my_background_task.stop()  # Stop the task if the bot is not logged in
+                            # Edit the message with the view
+                            await msg.edit(view=view)
+            except Exception as e:
+                logger.error(f"Error processing guild {guild_id}: {e}")
+        if not self.active_guilds:
+            logger.info("No active guilds, stopping background task.")
+            self.my_background_task.stop()
 
     @my_background_task.before_loop
     async def before_my_background_task(self):
         await self.bot.wait_until_ready()
-        logger.info("Bot is logged in, and is now checking for invites every minute.")
+        logger.info("Bot is ready, starting background task.")
 
     @my_background_task.after_loop
     async def after_my_background_task(self):
@@ -367,61 +373,60 @@ class VrchatApi(commands.Cog):
     async def vrc(self, interaction: discord.Interaction, operation: app_commands.Choice[str]):
         logger.info(f"User {interaction.user} initiated vrc command: {operation.name} for guild {interaction.guild_id}")
         """Handle VRChat API operations."""
+        guild_id = interaction.guild_id
+        vrc_handler = self.vrc_handlers.get(guild_id)
         match operation.value:
             case "check_login_status":
-                if self.vrc_handler:
-                    # Add logic to check the current status using self.vrc_handler
+                if vrc_handler:
+                    # Add logic to check the current status using vrc_handler
                     await interaction.response.send_message(
-                        f"Logged in as {self.vrc_handler.current_user.display_name}",
+                        f"Logged in as {vrc_handler.current_user.display_name}",
                         ephemeral=True)
                 else:
                     await interaction.response.send_message(
-                        "The bot is not logged in yet.", ephemeral=True)
-
-            case "setup_invite_handler":
-                if self.vrc_handler:
-                    # Call relevant invite handler logic here
-                    await interaction.response.send_message(
-                        "Setting up the invite handler...", ephemeral=True)
-                else:
-                    await interaction.response.send_message(
-                        "You need to log in first.", ephemeral=True)
+                        "The bot is not logged in yet for this guild.", ephemeral=True)
 
             case "login":
                 # Call the login method and notify the user
                 await self.vrc_bot_login(interaction)
+
             case "logout":
-                if self.vrc_handler:
-                    success = self.vrc_handler.logout()
+                if vrc_handler:
+                    success = vrc_handler.logout()
                     if success:
                         await interaction.response.send_message(
                             "Logged out successfully.", ephemeral=True)
-                        if self.my_background_task.is_running():
-                            self.my_background_task.stop()  # Stop the task if the bot is logged out
-                        logger.info(f"User {interaction.user} logged out the VRC Bot & stopped the background task.")
+                        self.vrc_handlers.pop(guild_id, None)
+                        if guild_id in self.active_guilds:
+                            self.active_guilds.remove(guild_id)
+                        if not self.active_guilds:
+                            if self.my_background_task.is_running():
+                                self.my_background_task.stop()
+                                logger.info("Background task has been successfully stopped.")
+                        logger.info(f"User {interaction.user} logged out the VRC Bot for guild {guild_id} & stopped the background task if needed.")
                     else:
                         await interaction.response.send_message(
                             "Failed to log out. No active session or an error occurred.", ephemeral=True)
                 else:
                     await interaction.response.send_message(
-                        "You are already logged out.", ephemeral=True)
+                        "You are already logged out for this guild.", ephemeral=True)
 
             case "get_invite_requests":
-                if self.vrc_handler:
+                if vrc_handler:
                     await interaction.response.send_message(
                         "Fetching invite requests...", ephemeral=True)
-
-                    # Fetch invite requests using self.vrc_handler
-                    invite_requests = self.vrc_handler.get_group_join_requests()
-
+                    # Fetch invite requests using vrc_handler
+                    invite_requests = vrc_handler.get_group_join_requests()
+                    if not invite_requests:
+                        invite_requests = []
                     if invite_requests:
                         for request in invite_requests:
                             if self.track_invite_requests(
-                                    guild_id=interaction.guild_id,
+                                    guild_id=guild_id,
                                     request_id=request['request_id'],
                                     message_id=None):
-                                user_id = request['requester_id']  # noqa
-                                profile_data = self.vrc_handler.get_user_profile(user_id)
+                                user_id = request['requester_id']
+                                profile_data = vrc_handler.get_user_profile(user_id)
                                 embed = discord.Embed(color=discord.Color.blue())
                                 embed.title = f"{profile_data['Display Name']}"
                                 embed.description = "Requests to join the VRChat group"
@@ -431,20 +436,18 @@ class VrchatApi(commands.Cog):
                                     name="Profile URL",
                                     value=f"[{profile_data['Display Name']}'s Profile](<https://vrchat.com/home/user/{user_id}>)",
                                     inline=False)
-                                guild_id: int = interaction.guild_id
-
                                 msg: discord.Message = await interaction.followup.send(
                                     embed=embed, ephemeral=False)
                                 # Add message to the tracked_invite_requests list
                                 self.track_invite_requests(
-                                    guild_id=interaction.guild_id,
+                                    guild_id=guild_id,
                                     request_id=request['request_id'],
                                     message_id=msg.id)
 
                                 # Pass message.id to the view
                                 view = InviteRequestViewer(
                                     guild_id=guild_id,
-                                    vrc_handler=self.vrc_handler,
+                                    vrc_handler=vrc_handler,
                                     user_id=user_id,
                                     user_name=profile_data['Display Name'],
                                     moderator_name=interaction.user.name,
@@ -454,27 +457,33 @@ class VrchatApi(commands.Cog):
 
                                 # Edit the message with the view
                                 await msg.edit(view=view)
-
+                    else:
+                        await interaction.followup.send(
+                            "No new invite requests found.", ephemeral=True)
                 else:
                     await interaction.response.send_message(
-                        "You need to log in first.", ephemeral=True)
+                        "You need to log in first for this guild.", ephemeral=True)
 
             case 'start_background_task':
-                # Start the background task
-                if not self.my_background_task.is_running():
-                    self.my_background_task.start()
-                    await interaction.response.send_message("Started the background task.")
+                if guild_id in self.active_guilds:
+                    await interaction.response.send_message("The background task is already running for this guild.", ephemeral=True)
                 else:
-                    await interaction.response.send_message("The background task is already running.")
+                    self.active_guilds.add(guild_id)
+                    if not self.my_background_task.is_running():
+                        self.my_background_task.start()
+                    await interaction.response.send_message("Started the background task for this guild.", ephemeral=True)
 
             case 'stop_background_task':
-                # Stop the background task
-                if self.my_background_task.is_running():
-                    logger.info("Attempting to stop the background task...")
-                    self.my_background_task.stop()
-                    await interaction.response.send_message("Stopped the background task.")
+                if guild_id in self.active_guilds:
+                    self.active_guilds.remove(guild_id)
+                    await interaction.response.send_message("Stopped the background task for this guild.", ephemeral=True)
+                    if not self.active_guilds:
+                        # No more guilds are active, stop the task
+                        if self.my_background_task.is_running():
+                            self.my_background_task.stop()
+                            logger.info("Background task has been successfully stopped.")
                 else:
-                    await interaction.response.send_message("The background task is not running.")
+                    await interaction.response.send_message("The background task is not running for this guild.", ephemeral=True)
 
             case _:
                 await interaction.response.send_message(
@@ -485,13 +494,13 @@ class VrchatApi(commands.Cog):
         """Login the bot using VRChat API."""
         try:
             guild_id = interaction.guild_id
-            self.guild_id = guild_id
             # Initialize the VrchatApiHandler
-            self.vrc_handler = VrchatApiHandler(guild_id)
+            vrc_handler = VrchatApiHandler(guild_id)
+            self.vrc_handlers[guild_id] = vrc_handler
 
             # If successful, respond to the interaction
             await interaction.response.send_message(
-                f"Logged in as {self.vrc_handler.current_user.display_name}", ephemeral=True)  # noqa
+                f"Logged in as {vrc_handler.current_user.display_name}", ephemeral=True)  # noqa
             logger.info(f"VRChat API logged in for guild {guild_id}")
 
         except Exception as e:
@@ -500,9 +509,8 @@ class VrchatApi(commands.Cog):
             await interaction.response.send_message(
                 "Failed to log in. Please check the logs for more details.", ephemeral=True)
 
-    # InviteRequestViewer class
 
-
+# InviteRequestViewer class
 class InviteRequestViewer(discord.ui.View):
     def __init__(
             self, guild_id: int, vrc_handler, user_id, user_name,
