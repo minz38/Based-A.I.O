@@ -18,6 +18,7 @@ class BackupManager(commands.Cog):
 
     # Create a / backup command
     @app_commands.command(name='backup', description='Returns a backup file for roles, channel and user permission')
+    @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.choices(create_backup=[app_commands.Choice(name="All", value='all'),
                                          app_commands.Choice(name="Roles", value='roles'),
                                          app_commands.Choice(name="Channels", value='channels'),
