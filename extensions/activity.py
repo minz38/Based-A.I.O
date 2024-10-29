@@ -140,6 +140,7 @@ class Inactivity(commands.Cog):
         logger.info(f"Total active guilds loaded: {len(self.active_guilds)}")
 
     @app_commands.command(name="tracking_setup", description="Setup the voice channel Tracking feature.")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(operation=[
@@ -214,6 +215,7 @@ class Inactivity(commands.Cog):
                 raise ValueError("Invalid operation. Please choose 'Enable' or 'Disable'.")
 
     @app_commands.command(name="inactivity_check", description="List inactive users. (tracking)")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(days=[
@@ -348,6 +350,7 @@ class Inactivity(commands.Cog):
 
     @app_commands.command(name="tracking_roles",
                           description="Mange which roles should be excluded from the activity tracking.")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(action=[
@@ -417,6 +420,7 @@ class Inactivity(commands.Cog):
             await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")  # noqa
 
     @app_commands.command(name="tracking_users", description="Include users to the activity tracking manually.")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(action=[
