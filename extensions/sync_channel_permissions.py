@@ -60,6 +60,7 @@ class Sync(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name='sync', description='Sync channel permissions with the channels Category')
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     async def sync_channels(self, interaction: discord.Interaction) -> None:
         admin_log_cog = self.bot.get_cog("AdminLog")
