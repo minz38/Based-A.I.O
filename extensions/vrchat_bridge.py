@@ -346,6 +346,7 @@ class VrchatApi(commands.Cog):
             logger.info("Background task has finished normally.")
 
     @app_commands.command(name="setup_vrchat", description="Setup VRChat API for this Guild")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def setup_vrchat(self, interaction: discord.Interaction):
         logger.info(f"User {interaction.user} initiated setup_vrchat command for guild {interaction.guild_id}")
@@ -371,6 +372,7 @@ class VrchatApi(commands.Cog):
 
     # Manually check for new guild join requests
     @app_commands.command(name="vrc", description="Perform Various VRChat API operations")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.choices(operation=[
         app_commands.Choice(name="Check Login Status", value="check_login_status"),
