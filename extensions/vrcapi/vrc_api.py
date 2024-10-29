@@ -154,6 +154,7 @@ class VrchatApiHandler:
                 "Display Name": user_profile.display_name,
                 "Bio": user_profile.bio,
                 "Bio Links": user_profile.bio_links,
+                "Profile Picture": user_profile.profile_picture if not None else user_profile.current_avatar_image_url,
                 "Profile Picture URL": user_profile.current_avatar_image_url,
                 "Avatar Image URL": user_profile.current_avatar_thumbnail_image_url,
                 "Profile Pic Override": user_profile.profile_pic_override,
@@ -162,10 +163,11 @@ class VrchatApiHandler:
                 "Status Description": user_profile.status_description,
                 "last Login": user_profile.last_login
             }
+            # Profile Picture should be used preferably
             return profile_data
 
         except vrchatapi.ApiException as er:
-            print("Exception when calling API: %s\n", er)
+            logger.error(f"Exception when fetching user profile from vrc_api: {er}")
             return None
 
     def handle_request(self, user_id, user_name, moderator_name, action):
