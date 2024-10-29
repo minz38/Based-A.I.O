@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import discord
@@ -295,8 +296,9 @@ class VrchatApi(commands.Cog):
                             embed.title = f"❔{profile_data['Display Name']}"
                             embed.description = "**Requests to join the VRChat group**"
                             embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])  # todo fetch alternative thumbnail if user has no vrc+
-                            # Todo remove empty lines from BIO before embedding it
-                            # embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
+                            bio: str = re.sub(r"\n\s*\n", "\n", profile_data['Bio'])
+
+                            embed.add_field(name="Bio", value=bio, inline=False)
                             embed.add_field(
                                 name="Profile URL",
                                 value=f"[{profile_data['Display Name']}'s Profile]"
@@ -446,7 +448,9 @@ class VrchatApi(commands.Cog):
                                 embed.title = f"{profile_data['Display Name']}"
                                 embed.description = "Requests to join the VRChat group"
                                 embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
-                                embed.add_field(name="Bio", value=profile_data['Bio'], inline=False)
+                                bio: str = re.sub(r"\n\s*\n", "\n", profile_data['Bio'])
+
+                                embed.add_field(name="Bio", value=bio, inline=False)
                                 embed.add_field(
                                     name="Profile URL",
                                     value=f"[{profile_data['Display Name']}'s Profile]"
