@@ -41,6 +41,7 @@ class ArchiveCog(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="archive", description="Archive the current channel")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_channels=True)
     async def archive(self, interaction: discord.Interaction):
@@ -191,6 +192,7 @@ class ArchiveCog(commands.Cog):
         await interaction.followup.send(content=confirmation_message, ephemeral=True, view=view)
 
     @app_commands.command(name="set_archive", description="Set the archive category for this guild")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     async def set_archive(self, interaction: discord.Interaction, category: discord.CategoryChannel):
@@ -223,6 +225,7 @@ class ArchiveCog(commands.Cog):
 
 
 @shadow_bot.tree.context_menu(name="Restore Channel")
+@app_commands.allowed_installs(guilds=True, users=False)
 @app_commands.guild_only()
 async def restore_channel(interaction: discord.Interaction, message: discord.Message) -> None:
     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name} on message id: {message.id}")
