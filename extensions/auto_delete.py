@@ -117,6 +117,7 @@ class AutoDeleteCog(commands.Cog):
 
     # Subcommand to enable auto-delete
     @auto_delete_group.command(name="enable", description="Enable automatic message deletion for this channel.")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.describe(hours="Time interval in hours for deleting messages.")
     @app_commands.checks.has_permissions(manage_guild=True)
     async def enable(self, interaction: discord.Interaction, hours: int):
@@ -158,6 +159,7 @@ class AutoDeleteCog(commands.Cog):
 
     # Subcommand to disable auto-delete
     @auto_delete_group.command(name="disable", description="Disable automatic message deletion for this channel.")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def disable(self, interaction: discord.Interaction):
         channel_id = interaction.channel_id
@@ -201,6 +203,7 @@ class AutoDeleteCog(commands.Cog):
 
     # Subcommand to check the status of auto-delete
     @auto_delete_group.command(name="status", description="View auto-delete settings for this guild.")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def status(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
@@ -244,6 +247,7 @@ class AutoDeleteCog(commands.Cog):
     @auto_delete_group.command(name="set_limit",
                                description="Set the maximum number of messages the bot can delete at once.")
     @app_commands.describe(limit="Maximum number of messages to delete in a single operation (default: 50).")
+    @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def set_limit(self, interaction: discord.Interaction, limit: int = 50):
         guild_id = interaction.guild_id
