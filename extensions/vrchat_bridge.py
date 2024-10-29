@@ -295,7 +295,7 @@ class VrchatApi(commands.Cog):
                             embed = discord.Embed(color=discord.Color.blue())
                             embed.title = f"❔{profile_data['Display Name']}"
                             embed.description = "**Requests to join the VRChat group**"
-                            embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])  # todo fetch alternative thumbnail if user has no vrc+
+                            embed.set_thumbnail(url=profile_data['Profile Picture'])
                             bio: str = re.sub(r"\n\s*\n", "\n", profile_data['Bio'])
 
                             embed.add_field(name="Bio", value=bio, inline=False)
@@ -447,7 +447,7 @@ class VrchatApi(commands.Cog):
                                 embed = discord.Embed(color=discord.Color.blue())
                                 embed.title = f"{profile_data['Display Name']}"
                                 embed.description = "Requests to join the VRChat group"
-                                embed.set_thumbnail(url=profile_data['Profile Thumbnail Override'])
+                                embed.set_thumbnail(url=profile_data['Profile Picture'])
                                 bio: str = re.sub(r"\n\s*\n", "\n", profile_data['Bio'])
 
                                 embed.add_field(name="Bio", value=bio, inline=False)
