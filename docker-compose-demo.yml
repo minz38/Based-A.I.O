@@ -6,6 +6,7 @@ services:
     working_dir: /code
     environment:
       - TOKEN=<not needed as of now>
+    restart: unless-stopped
     volumes:
       - .:/code
     command: ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
