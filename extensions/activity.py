@@ -9,7 +9,7 @@ from typing import Any
 
 # Initialize the logger
 logger = LoggerManager(name="Inactivity", level="INFO", log_file="logs/Inactivity.log").get_logger()
-
+# test commit
 
 class Inactivity(commands.Cog):
     def __init__(self, bot):
