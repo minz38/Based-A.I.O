@@ -7,6 +7,13 @@ services:
     environment:
       - TOKEN=<not needed as of now>
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1G
+
     volumes:
       - .:/code
     command: ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
