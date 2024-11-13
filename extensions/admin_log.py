@@ -56,7 +56,7 @@ class AdminLog(commands.Cog):
             return
 
         color = await self.match_priority(priority)
-        timestamp = datetime.now().strftime("%dd.%mm-%YYYY %H:%M")
+        timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
         embed = discord.Embed(title=f"Bot Event")
         embed.colour = color
         embed.add_field(name="Event:", value=event_name, inline=True)
