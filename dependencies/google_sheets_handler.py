@@ -6,7 +6,6 @@ import zipfile
 import gspread
 import paramiko
 import requests
-import asyncio
 from enum import Enum
 from pydub import AudioSegment
 from paramiko import SSHClient, AutoAddPolicy
@@ -16,7 +15,8 @@ import dependencies.encryption_handler as encryption_handler
 
 logger = LoggerManager(name="GoogleSheetHandler", level="INFO", log_file="logs/GoogleSheetHandler.log").get_logger()
 
-path_to_ffmpeg: str = 'dependencies/ffmpeg.exe'
+# path_to_ffmpeg: str = '/code/ff/ffmpeg'
+# path_to_ffprobe: str = '/code/ff/ffprobe'
 
 
 class QuestionType(Enum):
@@ -196,7 +196,8 @@ class GoogleSheetHandler:
                 'outtmpl': temp_audio_path,  # Output file name with .mp3 extension
                 'noplaylist': True,
                 'quiet': True,
-                'ffmpeg_location': path_to_ffmpeg,  # Path to ffmpeg.exe'
+                # 'ffmpeg_location': path_to_ffmpeg,  # Path to ffmpeg.exe'
+                # 'ffprobe_location': path_to_ffprobe,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',  # Force the output format to be MP3
@@ -254,6 +255,10 @@ class GoogleSheetHandler:
         return minutes, seconds
 
     def trim_audio(self, input_file, output_file, time_range):
+        # Set paths to ffmpeg and ffprobe
+        # AudioSegment.ffmpeg = path_to_ffmpeg
+        # AudioSegment.converter = path_to_ffprobe
+
         # Load the audio file
         audio = AudioSegment.from_mp3(input_file)
 
