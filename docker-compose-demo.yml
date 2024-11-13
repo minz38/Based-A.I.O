@@ -21,5 +21,5 @@ services:
       sh -c "apt-get update && apt-get install -y ffmpeg && pip install --no-cache-dir -r /code/requirements.txt && exec \"$$0\" \"$$@\""
 
     # WIP below, this is needed to complete the setup on a fresh bot
-    stdin_open: true   # Keep STDIN open even if not attached
-    tty: true          # Allocate a pseudo-TTY
+    stdin_open: true   # Keep STDIN open even if not attached | Disable after initial setup
+    tty: true          # Allocate a pseudo-TTY | Disable after initial setup
