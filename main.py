@@ -31,11 +31,11 @@ def create_bot_config() -> None:
     None
     """
     logger.info("Creating a new Bot configuration...")
-    bot_token: str | None = None
-    while bot_token is None:
+    bot_token: str = ''
+    while bot_token == '':
         bot_token = input(f"Enter your Discord Bot Token: ")
-    prefix: str | None = None
-    while prefix is None:
+    prefix: str = ''
+    while prefix == '':
         prefix: str = input(f"Enter your Discord Bot Prefix: ")
     admin_user_id = input(f"Enter the Discord User ID of your admin (leave blank for none):")
 
