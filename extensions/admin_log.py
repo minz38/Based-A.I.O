@@ -35,6 +35,8 @@ class AdminLog(commands.Cog):
         if log_channel is None:
             return
 
+        short_timestamp = interaction.created_at.strftime("%d.%m.%Y %H:%M")
+
         color = await self.match_priority(priority)
         embed = discord.Embed(title=f"Bot Command Used")
         embed.colour = color
@@ -42,7 +44,7 @@ class AdminLog(commands.Cog):
         embed.add_field(name="User", value=interaction.user.display_name, inline=True)
         if text:
             embed.add_field(name="Note", value=text, inline=False)
-        embed.set_footer(text=f"Timestamp: {interaction.created_at}")
+        embed.set_footer(text=f"Timestamp: {short_timestamp}")
         await log_channel.send(embed=embed)
 
     async def log_event(self, guild_id: int,
