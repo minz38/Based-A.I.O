@@ -14,3 +14,5 @@
 /temp_files/
 /ffmpeg.exe
 /ffprobe.exe
+/.env
+/docker-compose.yml
