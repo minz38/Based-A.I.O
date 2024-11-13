@@ -185,6 +185,13 @@ class GoogleSheetHandler:
         return questions
 
     def download_sounds(self, question, index):
+        # check if the folder temp_files exist
+        os.makedirs('temp_files', exist_ok=True)
+
+        # Download the sound file from YouTube and convert it to MP3.
+        # We're using youtube-dl for this task.
+        # Note: You'll need to have youtube-dl installed and in your system's PATH.
+        # Also, make sure you have ffmpeg installed and in your system's PATH for audio conversion.
         sound_url = question['sound']['path']
         question_nr = index
         logger.debug(f'Downloading sound from {sound_url}')
