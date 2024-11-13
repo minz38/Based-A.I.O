@@ -37,8 +37,10 @@ def create_bot_config() -> None:
     prefix: str | None = None
     while prefix is None:
         prefix: str = input(f"Enter your Discord Bot Prefix: ")
+    admin_user_id = input(f"Enter the Discord User ID of your admin (leave blank for none):")
 
-    admin_user_id: int = int(input(f"Enter the Discord User ID of your admin (leave blank for none):"))
+    if admin_user_id:
+        admin_user_id = int(admin_user_id)
 
     new_bot_config = {
         "bot_token": bot_token,
