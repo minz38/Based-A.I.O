@@ -1,0 +1,17 @@
+version: "3"
+services:
+  based-AIO-image:
+    container_name: based-bot
+    image: python:3.12
+    working_dir: /code
+    environment:
+      - TOKEN=<not needed as of now>
+    volumes:
+      - .:/code
+    command: ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
+    entrypoint: >
+      sh -c "apt-get update && apt-get install -y ffmpeg && pip install --no-cache-dir -r /code/requirements.txt && exec \"$$0\" \"$$@\""
+
+    # WIP below, this is needed to complete the setup on a fresh bot
+    stdin_open: true   # Keep STDIN open even if not attached
+    tty: true          # Allocate a pseudo-TTY

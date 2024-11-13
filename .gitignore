@@ -5,12 +5,11 @@
 /temp/
 /extensions/__init__.py
 /dependencies/__init__.py
-/dependencies/ffmpeg.exe
-/dependencies/ffprobe.exe
 /configs/guilds/
 /.venv/
 /backup/
 /extensions/ffmpeg.exe
 /temp_files/
-/ffmpeg.exe
-/ffprobe.exe
+/.env
+/docker-compose.yml
+/.xenv

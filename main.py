@@ -1,8 +1,11 @@
 # Main execution file to start the Bot
-import json
 import os
-from logger import LoggerManager
+import json
 from typing import Dict, Any
+from dotenv import load_dotenv
+from logger import LoggerManager
+
+load_dotenv()  # Load environment variables from .env file
 
 # Ensure the logs directory exists
 if not os.path.exists("logs"):
