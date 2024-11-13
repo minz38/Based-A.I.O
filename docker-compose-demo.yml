@@ -6,6 +6,8 @@ services:
     working_dir: /code
     environment:
       - TOKEN=<not needed as of now>
+      - YT_LOGIN=<add your youtube E-Mail Here>
+      - YT_PASSWORD=<add your password here>
     restart: unless-stopped
     deploy:
       resources:
