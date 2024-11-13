@@ -1,4 +1,5 @@
 colorama
+python-dotenv
 discord.py
 pyotp
 vrchatapi
