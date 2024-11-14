@@ -7,8 +7,6 @@ import re
 logger = LoggerManager(name="Music Downloader", level="info", log_file="logs/youtube_downloader.log").get_logger()
 
 
-# path_to_ffmpeg = "/code/ff/ffmpeg"
-
 async def download_music(video_url: str) -> str | bool:
     """
     Downloads music from a given YouTube video URL.

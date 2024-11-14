@@ -15,11 +15,6 @@ import dependencies.encryption_handler as encryption_handler
 
 logger = LoggerManager(name="GoogleSheetHandler", level="INFO", log_file="logs/GoogleSheetHandler.log").get_logger()
 
-# path_to_ffmpeg: str = '/code/ff/ffmpeg'
-# path_to_ffprobe: str = '/code/ff/ffprobe'
-
-
-
 
 class QuestionType(Enum):
     TEXT_QUESTION = 'TEXT_QUESTION'
