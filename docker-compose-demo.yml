@@ -26,7 +26,7 @@ services:
 
     volumes:
       - .:/code
-      - -./cdn:/cdn
+      - ./cdn:/cdn
 
     command: ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
 
