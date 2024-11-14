@@ -5,6 +5,8 @@ from logger import LoggerManager
 import re
 
 logger = LoggerManager(name="Music Downloader", level="info", log_file="logs/youtube_downloader.log").get_logger()
+
+
 # path_to_ffmpeg = "/code/ff/ffmpeg"
 
 async def download_music(video_url: str) -> str | bool:
@@ -32,7 +34,6 @@ async def download_music(video_url: str) -> str | bool:
         'outtmpl': f'{music_output_path}/song.%(ext)s',  # %(title)s.%(ext)s',
         'noplaylist': True,
         'quiet': True,
-        # 'ffmpeg_location': path_to_ffmpeg,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',

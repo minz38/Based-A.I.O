@@ -8,7 +8,6 @@ import paramiko
 import requests
 from enum import Enum
 from pydub import AudioSegment
-from dotenv import load_dotenv
 from logger import LoggerManager
 from paramiko import SSHClient, AutoAddPolicy
 from oauth2client.service_account import ServiceAccountCredentials
@@ -19,11 +18,7 @@ logger = LoggerManager(name="GoogleSheetHandler", level="INFO", log_file="logs/G
 # path_to_ffmpeg: str = '/code/ff/ffmpeg'
 # path_to_ffprobe: str = '/code/ff/ffprobe'
 
-# load environment variables
-load_dotenv()
 
-yt_login = os.getenv('YT_LOGIN')
-yt_password = os.getenv('YT_PASSWORD')
 
 
 class QuestionType(Enum):
@@ -210,10 +205,6 @@ class GoogleSheetHandler:
                 'outtmpl': temp_audio_path,  # Output file name with .mp3 extension
                 'noplaylist': True,
                 'quiet': True,
-                # 'ffmpeg_location': path_to_ffmpeg,  # Path to ffmpeg.exe'
-                # 'ffprobe_location': path_to_ffprobe,
-                'login': yt_login,
-                'password': yt_password,
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',  # Force the output format to be MP3
