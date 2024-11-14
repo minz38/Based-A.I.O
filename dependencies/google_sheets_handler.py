@@ -233,7 +233,8 @@ class GoogleSheetHandler:
                         if os.path.exists(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3'):
                             os.remove(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
                             logger.debug(
-                                f'Moved {temp_audio_path} to {self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
+                                f'Moved {temp_audio_path} to '
+                                f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
                         os.rename(temp_audio_path, f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
                         question['sound']['path'] = f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3'
                     if question['sound']['timestamp'] is not None:
@@ -296,7 +297,8 @@ class GoogleSheetHandler:
                         if os.path.exists(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg'):
                             os.remove(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg')
                             logger.debug(
-                                f'File {self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg already exists, recreating file')
+                                f'File {self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg '
+                                f'already exists, recreating file')
                         os.rename(temp_picture_path, f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg')
                         question['picture']['path'] = (f'{self.cdn_file_path}'
                                                        f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg')
@@ -397,9 +399,8 @@ class GoogleSheetHandler:
             # Upload the entire folder recursively
             for root, dirs, files in os.walk(local_directory):
                 for dir in dirs:
-                    remote_path = os.path.join(remote_directory,
-                                               os.path.relpath(os.path.join(root, dir), local_directory)).replace('\\',
-                                                                                                                  '/')
+                    remote_path = os.path.join(
+                        remote_directory, os.path.relpath(os.path.join(root, dir), local_directory)).replace('\\', '/')
                     try:
                         sftp.chdir(remote_path)
                     except IOError:
@@ -462,7 +463,7 @@ class GoogleSheetHandler:
             self.move_json()
             self.delete_remote_folder()
             self.feed_cdn()
-            self.zip_folder(f'{self.gs_worksheet_name}', f'{self.gs_worksheet_name}.zip')
+            # self.zip_folder(f'{self.gs_worksheet_name}', f'{self.gs_worksheet_name}.zip')
             return True
         except Exception as e:
             logger.error(f"Failed to process all files: {str(e)}")
