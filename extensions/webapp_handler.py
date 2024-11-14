@@ -31,6 +31,7 @@ class QuestionHandler(commands.Cog):
     @app_commands.allowed_contexts(guilds=True, dms=False, private_channels=False)
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.choices(operation=[app_commands.Choice(name="Pull & Push", value="pull_and_push"),
+                                     app_commands.Choice(name="Cleanup", value="cleanup"),
                                      app_commands.Choice(name="setup", value="setup")])
     async def webapp(self, interaction: discord.Interaction, operation: app_commands.Choice[str]) -> None:
         # load the guild config file
@@ -72,6 +73,17 @@ class QuestionHandler(commands.Cog):
             #     except Exception as e:
             #         logger.error(f"Could not send file to Discord: {e}")
             #         await message.edit(content="Could not send file to Discord.")
+            case "cleanup":
+                # run the delete_folder function from googlesheetshandler
+                gs_del = GoogleSheetHandler(interaction.guild_id)
+                try:
+                    await asyncio.to_thread(gs_del.delete_zip_folder)
+                    await asyncio.to_thread(gs_del.delete_remote_folder)
+                    await interaction.response.send_message(content=  # noqa
+                                                            "✅ All folders have been cleaned up successfully!")
+                except Exception as e:
+                    logger.error(f"Error cleaning up folders: {e}")
+                    await interaction.response.send_message(content="Error cleaning up folders.")  # noqa
 
             case "pull_and_push":
                 with open(f'configs/guilds/{interaction.guild_id}.json', 'r') as config_file:
