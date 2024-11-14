@@ -13,9 +13,6 @@ logger = LoggerManager(name="QuestionHandler", level="INFO", log_file="logs/Ques
 key: bytes = encryption_handler.load_key_from_config()
 
 
-# NOTE: FFMPEG and FFPROBE needs to be installed in the root directory of the bot as well as in the
-# dependencies directory
-
 # TODO: Add admin-log outputs
 
 # create a class and a slash command for the cog
@@ -76,13 +73,10 @@ class QuestionHandler(commands.Cog):
             case "cleanup":
                 # run the delete_folder function from googlesheetshandler
                 gs_del = GoogleSheetHandler(interaction.guild_id)
-                try:
-                    await asyncio.to_thread(gs_del.delete_zip_folder)
-                    await asyncio.to_thread(gs_del.delete_remote_folder)
+                if gs_del.cleanup():
                     await interaction.response.send_message(content=  # noqa
                                                             "✅ All folders have been cleaned up successfully!")
-                except Exception as e:
-                    logger.error(f"Error cleaning up folders: {e}")
+                else:
                     await interaction.response.send_message(content="Error cleaning up folders.")  # noqa
 
             case "pull_and_push":
@@ -172,13 +166,13 @@ class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
         default='0001',
         placeholder='0001'
     )
-    sftp_output_path = discord.ui.TextInput(
-        label="SFTP Output Path",
-        style=discord.TextStyle.short,
-        required=True,
-        default="/home/administrator/basedfiles/",
-        placeholder='/home/administrator/basedfiles/'
-    )
+    # sftp_output_path = discord.ui.TextInput(
+    #     label="SFTP Output Path",
+    #     style=discord.TextStyle.short,
+    #     required=True,
+    #     default="/home/administrator/basedfiles/",
+    #     placeholder='/home/administrator/basedfiles/'
+    # )
 
     def __init__(self, interaction: discord.Interaction) -> None:
         super().__init__(title=self.title, timeout=600)
@@ -206,73 +200,72 @@ class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
         with open(f'configs/guilds/{interaction.guild_id}.json', 'w') as y:
             json.dump(config, y, indent=4)
 
-        await interaction.response.send_message(content="Webapp handler setup successfully.\n"
-                                                        "Please proceed to setup the CDN handler.", ephemeral=True)
+        await interaction.response.send_message(content="Webapp handler setup successfully.\n", ephemeral=True)
 
 
-class SetupModalStep2(discord.ui.Modal, title="Setup CDN Handler"):
-    cdn_url = discord.ui.TextInput(
-        label="CDN URL",
-        style=discord.TextStyle.short,
-        required=True,
-        placeholder='cdn.killua.de'
-    )
-
-    cdn_port = discord.ui.TextInput(
-        label="CDN Port",
-        style=discord.TextStyle.short,
-        required=True,
-        placeholder='22'
-    )
-
-    cdn_user = discord.ui.TextInput(
-        label="CDN User",
-        style=discord.TextStyle.short,
-        required=True
-    )
-
-    cdn_password = discord.ui.TextInput(
-        label="CDN Password",
-        style=discord.TextStyle.short,
-        required=True
-    )
-
-    cdn_file_path = discord.ui.TextInput(
-        label="CDN File Path",
-        style=discord.TextStyle.short,
-        required=True,
-        placeholder='http://cdn.killua.de/'
-    )
-
-    def __init__(self, interaction: discord.Interaction) -> None:
-        super().__init__(title=self.title, timeout=600)
-        self.interaction = interaction
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        cdn_url = self.cdn_url.value
-        cdn_port = self.cdn_port.value
-        cdn_user = self.cdn_user.value
-        cdn_password = self.cdn_password.value
-        cdn_file_path = self.cdn_file_path.value
-
-        with open(f'configs/guilds/{interaction.guild_id}.json', 'r') as x:
-            config = json.load(x)
-
-        cdn_data = {
-            "cdn_url": cdn_url,
-            "cdn_port": cdn_port,
-            "cdn_user": encryption_handler.encrypt(cdn_user, key),
-            "cdn_password": encryption_handler.encrypt(cdn_password, key),
-            "cdn_file_path": cdn_file_path
-        }
-
-        # add or replace the keys inside the guild config
-        config.update(cdn_data)
-
-        with open(f'configs/guilds/{interaction.guild_id}.json', 'w') as y:
-            json.dump(config, y, indent=4)
-
-        await interaction.response.send_message(content="CDN handler setup successfully.", ephemeral=True)
+# class SetupModalStep2(discord.ui.Modal, title="Setup CDN Handler"):
+#     cdn_url = discord.ui.TextInput(
+#         label="CDN URL",
+#         style=discord.TextStyle.short,
+#         required=True,
+#         placeholder='cdn.killua.de'
+#     )
+#
+#     cdn_port = discord.ui.TextInput(
+#         label="CDN Port",
+#         style=discord.TextStyle.short,
+#         required=True,
+#         placeholder='22'
+#     )
+#
+#     cdn_user = discord.ui.TextInput(
+#         label="CDN User",
+#         style=discord.TextStyle.short,
+#         required=True
+#     )
+#
+#     cdn_password = discord.ui.TextInput(
+#         label="CDN Password",
+#         style=discord.TextStyle.short,
+#         required=True
+#     )
+#
+#     cdn_file_path = discord.ui.TextInput(
+#         label="CDN File Path",
+#         style=discord.TextStyle.short,
+#         required=True,
+#         placeholder='http://cdn.killua.de/'
+#     )
+#
+#     def __init__(self, interaction: discord.Interaction) -> None:
+#         super().__init__(title=self.title, timeout=600)
+#         self.interaction = interaction
+#
+#     async def on_submit(self, interaction: discord.Interaction) -> None:
+#         cdn_url = self.cdn_url.value
+#         cdn_port = self.cdn_port.value
+#         cdn_user = self.cdn_user.value
+#         cdn_password = self.cdn_password.value
+#         cdn_file_path = self.cdn_file_path.value
+#
+#         with open(f'configs/guilds/{interaction.guild_id}.json', 'r') as x:
+#             config = json.load(x)
+#
+#         cdn_data = {
+#             "cdn_url": cdn_url,
+#             "cdn_port": cdn_port,
+#             "cdn_user": encryption_handler.encrypt(cdn_user, key),
+#             "cdn_password": encryption_handler.encrypt(cdn_password, key),
+#             "cdn_file_path": cdn_file_path
+#         }
+#
+#         # add or replace the keys inside the guild config
+#         config.update(cdn_data)
+#
+#         with open(f'configs/guilds/{interaction.guild_id}.json', 'w') as y:
+#             json.dump(config, y, indent=4)
+#
+#         await interaction.response.send_message(content="CDN handler setup successfully.", ephemeral=True)
 
 
 class ConfirmView(discord.ui.View):
@@ -295,11 +288,11 @@ class ConfirmView(discord.ui.View):
         logger.info(f"User {interaction.user} aborted the process for guild {interaction.guild.name}")
         self.stop()  # Stops the view from listening for more button clicks
 
-    @discord.ui.button(label="CDN Setup", style=discord.ButtonStyle.gray)
-    async def setup_cdn_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(SetupModalStep2(interaction))
-        logger.info(f"User {interaction.user} started the CDN setup process for guild {interaction.guild.name}")
-        self.stop()
+    # @discord.ui.button(label="CDN Setup", style=discord.ButtonStyle.gray)
+    # async def setup_cdn_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    #     await interaction.response.send_modal(SetupModalStep2(interaction))
+    #     logger.info(f"User {interaction.user} started the CDN setup process for guild {interaction.guild.name}")
+    #     self.stop()
 
 
 async def setup(bot):

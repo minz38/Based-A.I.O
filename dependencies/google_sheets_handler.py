@@ -4,12 +4,10 @@ import yt_dlp
 import shutil
 import zipfile
 import gspread
-import paramiko
 import requests
 from enum import Enum
 from pydub import AudioSegment
 from logger import LoggerManager
-from paramiko import SSHClient, AutoAddPolicy
 from oauth2client.service_account import ServiceAccountCredentials
 import dependencies.encryption_handler as encryption_handler
 
@@ -258,10 +256,6 @@ class GoogleSheetHandler:
         return minutes, seconds
 
     def trim_audio(self, input_file, output_file, time_range):
-        # Set paths to ffmpeg and ffprobe
-        # AudioSegment.ffmpeg = path_to_ffmpeg
-        # AudioSegment.converter = path_to_ffprobe
-
         # Load the audio file
         audio = AudioSegment.from_mp3(input_file)
 
@@ -366,102 +360,43 @@ class GoogleSheetHandler:
             return False
 
     def feed_cdn(self):
-        local_directory = f'{self.gs_worksheet_name}'
-        remote_directory = f'/var/www/cdn/html/{self.gs_worksheet_name}'
-
-        # Establish an SSH client and set policies
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
         try:
-            # Connect to the server
-            ssh.connect(self.cdn_url,
-                        port=self.cdn_port,
-                        username=self.cdn_user,
-                        password=self.cdn_password)
-            sftp = ssh.open_sftp()
-            logger.debug(f"Connected to {self.cdn_url}:{self.cdn_port}")
+            # delete the folder if it exists and recreate it
+            if os.path.exists(f'cdn/{self.gs_worksheet_name}'):
+                shutil.rmtree(f'cdn/{self.gs_worksheet_name}')
+            # create new directory in cdn and move files to it
 
-            # Attempt to change into the remote directory or create if it doesn't exist
-            try:
-                sftp.chdir(remote_directory)
-                logger.debug(f"Changed to existing directory {remote_directory}")
-            except IOError:
-                logger.debug(f"Creating directory {remote_directory}")
-                try:
-                    sftp.mkdir(remote_directory)
-                    sftp.chdir(remote_directory)
-                    logger.debug(f"Changed to new directory {remote_directory}")
-                except Exception as e:
-                    logger.error(f"Failed to create directory {remote_directory}: {e}")
-                    return
+            local_directory = f'{self.gs_worksheet_name}'
 
-            # Upload the entire folder recursively
-            for root, dirs, files in os.walk(local_directory):
-                for dir in dirs:
-                    remote_path = os.path.join(
-                        remote_directory, os.path.relpath(os.path.join(root, dir), local_directory)).replace('\\', '/')
-                    try:
-                        sftp.chdir(remote_path)
-                    except IOError:
-                        logger.info(f"Creating remote directory {remote_path}")
-                        sftp.mkdir(remote_path)
+            # move files to cdn directory
+            shutil.move(local_directory, f'cdn/')
+            logger.info(f"Moved files to CDN directory: {self.gs_worksheet_name}")
+        except Exception as e:
+            logger.error(f"Failed to move files to CDN directory: {str(e)}")
+            return False
 
-                for file in files:
-                    local_path = os.path.join(root, file)
-                    remote_path = os.path.join(remote_directory, os.path.relpath(local_path, local_directory)).replace(
-                        '\\',
-                        '/')
-                    logger.info(f"Uploading {local_path} to {remote_path}")
-                    sftp.put(local_path, remote_path)
-
-            logger.info(f"All files and directories have been uploaded to CDN successfully.")
+    def cleanup(self):
+        cleanup_directory = f'cdn/{self.gs_worksheet_name}'
+        cleanup_directory_2 = f'temp_files'
+        try:
+            # delete the folder if it exists
+            if os.path.exists(cleanup_directory):
+                shutil.rmtree(cleanup_directory)
+                logger.info(f"Deleted cleanup directory: {cleanup_directory}")
+            if os.path.exists(cleanup_directory_2):
+                shutil.rmtree(cleanup_directory_2)
+                logger.info(f"Deleted cleanup directory: {cleanup_directory_2}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to upload files to CDN: {str(e)}")
+            logger.error(f"Failed to cleanup directory: {str(e)}")
             return False
-
-        finally:
-            if sftp:
-                sftp.close()
-            if ssh:
-                ssh.close()
-
-    def delete_remote_folder(self):
-        # Assuming CdnConfig and other necessary imports are defined elsewhere in the project
-        folder_path = f'/var/www/cdn/html/{self.gs_worksheet_name}'
-
-        # Establish an SSH client and set policies
-        ssh = SSHClient()
-        ssh.set_missing_host_key_policy(AutoAddPolicy())
-
-        try:
-            # Connect to the server
-            ssh.connect(self.cdn_url,
-                        port=self.cdn_port,
-                        username=self.cdn_user,
-                        password=self.cdn_password)
-            logger.debug(f"Connected to {self.cdn_url}:{self.cdn_port}")
-
-            # Execute command to delete files and folders recursively
-            stdin, stdout, stderr = ssh.exec_command(f'rm -rf {folder_path}')
-            errors = stderr.read().decode('utf-8')
-            if errors:
-                raise Exception(f"Error deleting remote folder: {errors}")
-            logger.debug(f"Folder deleted successfully.")
-        except Exception as e:
-            logger.error(f"Failed to delete remote folder: {str(e)}")
-        finally:
-            # Close the SSH connection
-            ssh.close()
 
     def process_all(self):
         try:
             self.process_audio()
             self.process_picture()
             self.move_json()
-            self.delete_remote_folder()
             self.feed_cdn()
             # self.zip_folder(f'{self.gs_worksheet_name}', f'{self.gs_worksheet_name}.zip')
             return True
