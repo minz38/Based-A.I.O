@@ -5,9 +5,10 @@ services:
     image: python:3.12
     working_dir: /code
     environment:
-      - TOKEN=<not needed as of now>
-      - YT_LOGIN=<add your youtube E-Mail Here>
-      - YT_PASSWORD=<add your password here>
+      - TOKEN=<none>
+      - HTTP_PROXY=http://sky38.synology.me:49185
+      - HTTPS_PROXY=http://sky38.synology.me:49185
+      - NO_PROXY=localhost,127.0.0.1
     restart: unless-stopped
     deploy:
       resources:
@@ -15,13 +16,16 @@ services:
           memory: 3G
         reservations:
           memory: 1G
-
     volumes:
       - .:/code
     command: ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
     entrypoint: >
       sh -c "apt-get update && apt-get install -y ffmpeg && pip install --no-cache-dir -r /code/requirements.txt && exec \"$$0\" \"$$@\""
-
-    # WIP below, this is needed to complete the setup on a fresh bot
-    stdin_open: true   # Keep STDIN open even if not attached | Disable after initial setup
-    tty: true          # Allocate a pseudo-TTY | Disable after initial setup
+    build:
+      context: .
+      args:
+        HTTP_PROXY: http://sky38.synology.me:49185
+        HTTPS_PROXY: http://sky38.synology.me:49185
+        NO_PROXY: localhost,127.0.0.1
+    stdin_open: true
+    tty: true
