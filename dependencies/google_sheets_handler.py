@@ -121,10 +121,10 @@ class GoogleSheetHandler:
         self.gs_client = None
         self.cdn_file_path: str = ''
         self.gs_id: str = ''
-        self.cdn_url: str = ''
-        self.cdn_port: int = 0
-        self.cdn_user: str = ''
-        self.cdn_password: str = ''
+        # self.cdn_url: str = ''
+        # self.cdn_port: int = 0
+        # self.cdn_user: str = ''
+        # self.cdn_password: str = ''
         self.gs_scope: list[str] = ["https://www.googleapis.com/auth/spreadsheets",
                                     "https://www.googleapis.com/auth/drive"]
         self.load_configs()
@@ -140,10 +140,10 @@ class GoogleSheetHandler:
         self.gs_client = gspread.authorize(self.gs_credentials)
         self.cdn_file_path = config['cdn_file_path']
         self.gs_id = config['gs_id']
-        self.cdn_url = config['cdn_url']
-        self.cdn_port = config['cdn_port']
-        self.cdn_user = encryption_handler.decrypt(config['cdn_user'])
-        self.cdn_password = encryption_handler.decrypt(config['cdn_password'])
+        # self.cdn_url = config['cdn_url']
+        # self.cdn_port = config['cdn_port']
+        # self.cdn_user = encryption_handler.decrypt(config['cdn_user'])
+        # self.cdn_password = encryption_handler.decrypt(config['cdn_password'])
 
     def pull_from_spreadsheet(self):
         sheet = self.gs_client.open_by_key(self.gs_id).worksheet(self.gs_worksheet_name)
@@ -192,7 +192,7 @@ class GoogleSheetHandler:
         logger.debug(f'Downloading sound from {sound_url}')
         # try to download the sound file, expect errors. after downloading convert it using ffmpeg.exe
         try:
-            temp_audio_path = f'temp_files/{self.gs_worksheet_name}-{question_nr}'
+            temp_audio_path = f'temp_files/{question_nr}'
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'outtmpl': temp_audio_path,  # Output file name with .mp3 extension
@@ -222,26 +222,26 @@ class GoogleSheetHandler:
                 try:
                     self.download_sounds(question, index)
                     nr = index
-                    temp_audio_path = f'temp_files/{self.gs_worksheet_name}-{nr}.mp3'
+                    temp_audio_path = f'temp_files/{nr}.mp3'
                     if os.path.exists(temp_audio_path):
                         # move file to a new folder, if the folder doesn't exist create it
                         if not os.path.exists(f'{self.gs_worksheet_name}'):
                             os.makedirs(f'{self.gs_worksheet_name}')
                         # when the file already exists delete it first
-                        if os.path.exists(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3'):
-                            os.remove(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
+                        if os.path.exists(f'{self.gs_worksheet_name}/{nr}.mp3'):
+                            os.remove(f'{self.gs_worksheet_name}/{nr}.mp3')
                             logger.debug(
                                 f'Moved {temp_audio_path} to '
-                                f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
-                        os.rename(temp_audio_path, f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
-                        question['sound']['path'] = f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3'
+                                f'{self.gs_worksheet_name}/{nr}.mp3')
+                        os.rename(temp_audio_path, f'{self.gs_worksheet_name}/{nr}.mp3')
+                        question['sound']['path'] = f'{self.gs_worksheet_name}/{nr}.mp3'
                     if question['sound']['timestamp'] is not None:
                         self.trim_audio(question['sound']['path'], question['sound']['path'],
                                         question['sound']['timestamp'])
                         logger.debug(f'Trimmed audio file {question["sound"]["path"]}')
                     if question['sound']['path'] is not None:
                         question['sound']['path'] = (f'{self.cdn_file_path}'
-                                                     f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.mp3')
+                                                     f'{self.gs_worksheet_name}/{nr}.mp3')
                     else:
                         logger.debug(f'No trim needed for question {index}')
                 except Exception as e:
@@ -282,20 +282,21 @@ class GoogleSheetHandler:
                 try:
                     self.download_picture(question, index)
                     nr = index
-                    temp_picture_path = f'temp_files/{self.gs_worksheet_name}-{nr}.jpg'
+                    # temp_picture_path = f'temp_files/{self.gs_worksheet_name}-{nr}.jpg'  # old version
+                    temp_picture_path = f'temp_files/{nr}.jpg'
                     if os.path.exists(temp_picture_path):
                         # move file to a new folder, if the folder doesn't exist create it
                         if not os.path.exists(self.gs_worksheet_name):
                             os.makedirs(self.gs_worksheet_name)
                         # when the file already exists delete it first
-                        if os.path.exists(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg'):
-                            os.remove(f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg')
+                        if os.path.exists(f'{self.gs_worksheet_name}/{nr}.jpg'):
+                            os.remove(f'{self.gs_worksheet_name}/{nr}.jpg')
                             logger.debug(
-                                f'File {self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg '
+                                f'File {self.gs_worksheet_name}/{nr}.jpg '
                                 f'already exists, recreating file')
-                        os.rename(temp_picture_path, f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg')
+                        os.rename(temp_picture_path, f'{self.gs_worksheet_name}/{nr}.jpg')
                         question['picture']['path'] = (f'{self.cdn_file_path}'
-                                                       f'{self.gs_worksheet_name}/{self.gs_worksheet_name}-{nr}.jpg')
+                                                       f'{self.gs_worksheet_name}/{nr}.jpg')
                     else:
                         logger.debug(f'No picture found for question {index}')
                 except Exception as e:
@@ -308,7 +309,7 @@ class GoogleSheetHandler:
         # download using requests
         url = question['picture']['path']
         r = requests.get(url, stream=True)
-        with open(f'temp_files/{self.gs_worksheet_name}-{index}.jpg', 'wb') as f:
+        with open(f'temp_files/{index}.jpg', 'wb') as f:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:  # filter out keep-alive new chunks
                     f.write(chunk)

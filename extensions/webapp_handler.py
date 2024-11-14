@@ -1,4 +1,4 @@
-import os
+# import os
 import json
 import discord
 import asyncio
@@ -82,18 +82,17 @@ class QuestionHandler(commands.Cog):
             case "pull_and_push":
                 with open(f'configs/guilds/{interaction.guild_id}.json', 'r') as config_file:
                     config = json.load(config_file)
-                keys: list[str] = ["gs_id", "gs_worksheet_name", "gs_credentials_file", "sftp_output_path", "cdn_url",
-                                   "cdn_port", "cdn_user", "cdn_password", "cdn_file_path"]
+                keys: list[str] = ["gs_id", "gs_worksheet_name", "gs_credentials_file", "cdn_file_path"]
 
                 if any(k not in config for k in keys):
-                    return await interaction.response.send_message(
+                    return await interaction.response.send_message(  # noqa
                         content="The Guild Config file is missing or incomplete.\n"
                                 "Please setup the webapp handler with `/webapp setup`."
                     )
 
                 else:
                     # Send the initial response
-                    await interaction.response.send_message(
+                    await interaction.response.send_message(  # noqa
                         content=f"Processing {operation.value}...\nLean back and get a coffee ☕️"
                     )
 
@@ -166,6 +165,12 @@ class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
         default='0001',
         placeholder='0001'
     )
+    cdn_file_path = discord.ui.TextInput(
+        label="CDN File Path",
+        style=discord.TextStyle.short,
+        required=True,
+        placeholder='http://cdn.killua.de/'  # noqa
+    )
     # sftp_output_path = discord.ui.TextInput(
     #     label="SFTP Output Path",
     #     style=discord.TextStyle.short,
@@ -192,7 +197,7 @@ class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
             "gs_id": self.gs_id.value,
             "gs_worksheet_name": self.gs_worksheet_name.value,
             "gs_credentials_file": f'configs/guilds/gs_credentials-{interaction.guild_id}.json',
-            "sftp_output_path": self.sftp_output_path.value
+            "cdn_file_path": self.cdn_file_path.value
         }
         # add or replace the keys inside the guild config
         config.update(gs_data)
@@ -200,7 +205,7 @@ class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
         with open(f'configs/guilds/{interaction.guild_id}.json', 'w') as y:
             json.dump(config, y, indent=4)
 
-        await interaction.response.send_message(content="Webapp handler setup successfully.\n", ephemeral=True)
+        await interaction.response.send_message(content="Webapp handler setup successfully.\n", ephemeral=True)  # noqa
 
 
 # class SetupModalStep2(discord.ui.Modal, title="Setup CDN Handler"):
