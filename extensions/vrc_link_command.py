@@ -4,6 +4,8 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
+# todo add logger
+
 # Define the file path for storing VRChat user links
 VRCHAT_LINK_FILE = 'temp/vrc/vrchat_user_link_map.json'
 
