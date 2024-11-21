@@ -105,12 +105,14 @@ class AdminLog(commands.Cog):
 
                         await interaction.response.send_message(  # noqa
                             f"Admin log channel set to {log_channel.mention}")
-                        await self.log_interaction(interaction, f"Bot log channel set to {log_channel.mention}")
+                        await self.log_interaction(interaction,
+                                                   priority="info",
+                                                   text=f"Bot log channel set to {log_channel.mention}")
                 else:
                     await interaction.response.send_message("Please specify an admin log channel.")  # noqa
                     logger.error("No admin log channel specified during admin log setup.")
             case "disable":
-                await self.log_interaction(interaction, "Bot log channel disabled.")
+                await self.log_interaction(interaction, priority='error', text="Bot log channel disabled.")
                 data.pop("admin_log_channel", None)
 
                 with open(path, "w") as file:
