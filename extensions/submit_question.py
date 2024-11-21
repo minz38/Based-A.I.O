@@ -10,16 +10,19 @@ logger = LoggerManager(name="Submit Question", level="INFO", log_file="logs/Goog
 
 
 class QuestionView(discord.ui.View):
-    def __init__(self, data, timeout=60, cog_ref=None) -> None:
+    def __init__(self, data, timeout=60, cog_ref=None, inter=None) -> None:
         super().__init__(timeout=timeout)
         self.data = data
         self.cog_ref = cog_ref
+        self.inter: discord.Interaction = inter
+
 
     @discord.ui.button(label="Submit", style=discord.ButtonStyle.green)
     async def confirm_button(self, button: discord.ui.Button, interaction: discord.Interaction):
         logger.info(f"user: {self.cog_ref.username} submitted the Question")
         # print(f"{Fore.GREEN}user: {interaction.user.display_name} Submitted a Question\n    {self.data}")
         gs_handler = GoogleSheetHandler(guild_id=self.cog_ref.guild_id)
+        admin_log_cog = self.inter.client.get_cog("AdminLog")
         try:
             # await interaction.response.defer(ephemeral=True)
 
@@ -28,6 +31,13 @@ class QuestionView(discord.ui.View):
                 if self.cog_ref and self.cog_ref.last_question_message:
                     await self.cog_ref.last_question_message.edit(
                         content="Successfully Submitted question, you can now close this window", embed=None, view=None)
+
+                if admin_log_cog:
+                    await admin_log_cog.log_interaction(
+                        interaction=self.inter,
+                        priority="info",
+                        text=f"User submitted a question to the Google Sheets."
+                    )
             else:
                 if self.cog_ref and self.cog_ref.last_question_message:
                     await self.cog_ref.last_question_message.edit(
@@ -35,6 +45,13 @@ class QuestionView(discord.ui.View):
                         embed=None,
                         view=None
                     )
+                if admin_log_cog:
+                    await admin_log_cog.log_interaction(
+                        interaction=self.inter,
+                        priority="error",
+                        text=f"User encountered an error while submitting the question: 44092"
+                    )
+
         except Exception as e:
             print(f"{e}")
             if self.cog_ref and self.cog_ref.last_question_message:
@@ -49,6 +66,14 @@ class QuestionView(discord.ui.View):
         # print(f"{Fore.YELLOW}user: {interaction.user.display_name} did not submit the question'")
         await self.cog_ref.last_question_message.edit(content="Question was not Submitted",
                                                       embed=None, view=None)
+        admin_log_cog = self.inter.client.get_cog("AdminLog")
+        if admin_log_cog:
+            await admin_log_cog.log_interaction(
+                interaction=self.inter,
+                priority="error",
+                text=f"User did not submit the question to the Google Sheets."
+            )
+
         self.stop()
 
     async def on_timeout(self):
@@ -170,7 +195,7 @@ class MyCog(commands.Cog):
 
         self.username = interaction.user.display_name
         self.guild_id = interaction.guild.id
-        view = QuestionView(data_list, cog_ref=self, timeout=300)
+        view = QuestionView(data_list, cog_ref=self, timeout=300, inter=interaction)
         print(f"User: {interaction.user.display_name} created a question \n    {data_list}")
         # await interaction.send(embed=embed, view=view, ephemeral=True)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)  # noqa
