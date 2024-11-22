@@ -26,7 +26,7 @@ class BackupManager(commands.Cog):
                                          app_commands.Choice(name="Emojis", value='emojis'),
                                          app_commands.Choice(name="Stickers", value='sticker'),
                                          app_commands.Choice(name="Soundboard", value='soundboard'),
-                                         app_commands.Choice(name="VRC Link Map", value='VRC link map')
+                                         app_commands.Choice(name="VRC Link Map", value='vrc')
                                          ])
     async def backup(self, interaction: discord.Interaction, create_backup: str) -> None:
         admin_log_cog = interaction.client.get_cog("AdminLog")
@@ -65,7 +65,7 @@ class BackupManager(commands.Cog):
                 await interaction.response.send_message(f"Starting soundboard backup...")  # noqa
                 await create_soundboard_backup(interaction)
 
-            case 'vrc link map':
+            case 'vrc':
                 await interaction.response.send_message(f"Starting VRC link map backup...")  # noqa
                 await create_vrc_link_map_backup(interaction)
             case _:
@@ -211,7 +211,7 @@ async def create_soundboard_backup(interaction):
 
 async def create_vrc_link_map_backup(interaction):
     # Define the source path for the VRChat link map file
-    source_file = 'data/vrc/vrchat_user_link_map.json'
+    source_file = 'temp/vrc/vrchat_user_link_map.json'
 
     # Ensure the source file exists before attempting to back it up
     if not os.path.exists(source_file):
