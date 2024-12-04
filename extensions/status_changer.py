@@ -4,6 +4,8 @@ from discord import app_commands
 from logger import LoggerManager
 
 logger = LoggerManager(name="StatusChanger", level="INFO", log_file="logs/StatusChanger.log").get_logger()
+
+
 # push test
 
 class PresenceCog(commands.Cog):
@@ -50,7 +52,7 @@ class PresenceCog(commands.Cog):
             return
 
         await self.bot.change_presence(activity=activity)
-        await interaction.response.send_message(f"Bot activity changed to: {activity.name} {activity_text}", # noqa
+        await interaction.response.send_message(f"Bot activity changed to: {activity.name}",  # noqa
                                                 ephemeral=True)
 
         # Retrieve the AdminLog cog and use log_interaction()
