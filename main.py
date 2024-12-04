@@ -1,6 +1,7 @@
 # Main execution file to start the Bot
 import os
 import json
+import asyncio
 from typing import Dict, Any
 from dotenv import load_dotenv
 from logger import LoggerManager
@@ -153,10 +154,24 @@ if __name__ == "__main__":
 
     # Extract bot token and start the bot
     token = bot_config["bot_token"]
-    from bot import bot
+    from bot import bot, start_api  # Yes call me stupid but... it works fine for months
+
+    async def main():
+        await asyncio.gather(
+            start_api(),
+            bot.start(token),
+        )
 
     try:
-        bot.run(token)
-        logger.info("Bot started successfully.")
+        asyncio.run(main())
+        logger.info("Bot and API started successfully.")
     except Exception as e:
-        logger.error(f"Error when running the bot: {e}")
+        logger.error(f"Error when running the bot and API: {e}")
+
+    # try:
+    #     asyncio.run(start_api())
+    #     logger.info("API started successfully.")
+    #     bot.run(token)
+    #     # logger.info("Bot started successfully.")  # This cant run since the bot stays in the bot.run loop
+    # except Exception as e:
+    #     logger.error(f"Error when running the bot: {e}")
