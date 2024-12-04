@@ -2,15 +2,21 @@
 import json
 import discord
 import asyncio
+from bot import api
+from pydantic import BaseModel
 from discord import app_commands
 from discord.ext import commands
+from logger import LoggerManager
+from fastapi import HTTPException, status
 from dependencies.google_sheets_handler import GoogleSheetHandler
 import dependencies.encryption_handler as encryption_handler
-from logger import LoggerManager
+
 
 logger = LoggerManager(name="QuestionHandler", level="INFO", log_file="logs/QuestionHandler.log").get_logger()
 
 key: bytes = encryption_handler.load_key_from_config()
+
+keys: list[str] = ["gs_id", "gs_worksheet_name", "gs_credentials_file", "cdn_file_path"]
 
 
 # TODO: Add admin-log outputs
@@ -36,40 +42,6 @@ class QuestionHandler(commands.Cog):
             f"Command: {interaction.command.name} with option: {operation.value} used by {interaction.user.name}")
 
         match operation.value:
-            # case "pull":
-            #     try:
-            #         pull_from_spreadsheet(spreadsheet_id, filename)
-            #         await message.edit(
-            #             content="✅ Questions pulled successfully!")
-            #     except Exception as e:
-            #         logger.error(f"Could not pull questions from spreadsheet: {e}")
-            #         await message.edit(content="Could not pull questions from spreadsheet.")
-
-            # case "push"
-            #     try:
-            #         file = discord.File(f'{filename}.zip')
-            #         # Send the file
-            #         await message.edit(content="✅ All files have been uploaded to the CDN")
-            #     except Exception as e:
-            #         logger.error(f"Could not send file to CDN: {e}")
-            #         await message.edit(content="Could not send file to CDN.")
-
-            # case "zip":
-            #     try:
-            #         # check if zip file exists
-            #         if os.path.exists(f'{filename}.zip'):
-            #             file = discord.File(f'{filename}.zip')
-            #             # Send the file
-            #             logger.info(f"Zip file exists, sending it to Discord.")
-            #             await message.edit(content="✅ Zip Successfully created:", file=file)
-            #
-            #         else:
-            #             logger.error(f"Zip file does not exist.")
-            #             await message.edit(content="No zip file found. Execute /webapp pull first.")
-            #
-            #     except Exception as e:
-            #         logger.error(f"Could not send file to Discord: {e}")
-            #         await message.edit(content="Could not send file to Discord.")
             case "cleanup":
                 # run the delete_folder function from googlesheetshandler
                 gs_del = GoogleSheetHandler(interaction.guild_id)
@@ -82,7 +54,6 @@ class QuestionHandler(commands.Cog):
             case "pull_and_push":
                 with open(f'configs/guilds/{interaction.guild_id}.json', 'r') as config_file:
                     config = json.load(config_file)
-                keys: list[str] = ["gs_id", "gs_worksheet_name", "gs_credentials_file", "cdn_file_path"]
 
                 if any(k not in config for k in keys):
                     return await interaction.response.send_message(  # noqa
@@ -142,6 +113,64 @@ class QuestionHandler(commands.Cog):
                 logger.error(f"Invalid operation: {operation.value}")
 
 
+class ResponseMessage(BaseModel):
+    message: str
+
+
+@api.get("/webapp/{guild_id}", response_model=ResponseMessage, responses={
+    200: {"description": "Success", "content": {"application/json": {"example": {"message": "Success message"}}}},
+    400: {"description": "Bad Request", "content": {"application/json": {"example": {"detail": "Error message"}}}},
+    404: {"description": "Not Found", "content": {"application/json": {"example": {"detail": "Error message"}}}},
+    500: {"description": "Internal Server Error",
+          "content": {"application/json": {"example": {"detail": "Error message"}}}},
+})
+@api.get("/webapp/{guild_id}")
+async def api_pull(guild_id: int):
+    """
+    Executes the function webapp with the operation pull_and_push and returns a success message or error.
+
+    :param guild_id: The ID of the guild.
+    :return: JSONResponse with appropriate status code and message.
+    """
+    # Try to load the guild config file
+    try:
+        with open(f'configs/guilds/{guild_id}.json', 'r') as config_file:
+            config = json.load(config_file)
+    except FileNotFoundError:
+        logger.error(f"Guild config file not found for guild_id {guild_id}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild config file not found.")
+
+    # Check if the required keys are present in the config
+    if any(k not in config for k in keys):
+        logger.error(f"Guild config is missing keys for guild_id {guild_id}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="The Guild Config is missing or incomplete.")
+
+    try:
+        gs = GoogleSheetHandler(guild_id)
+
+        # Run pull_from_spreadsheet in a thread
+        questions = await asyncio.to_thread(gs.pull_from_spreadsheet)
+
+        if not questions:
+            logger.warning(f"No questions were pulled from the spreadsheet for guild_id {guild_id}")
+            return {"message": "No questions were pulled from the spreadsheet."}
+
+        # Run process_all in a thread
+        result = await asyncio.to_thread(gs.process_all)
+        if result:
+            logger.info(f"Successfully processed and uploaded files for guild_id {guild_id}")
+            return {"message": "All files have been processed and uploaded to the CDN successfully."}
+        else:
+            logger.error(f"Error processing files for guild_id {guild_id}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing files.")
+
+    except Exception as e:
+        logger.error(f"Could not pull & push questions for guild_id {guild_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Error pulling & pushing questions.")
+
+
 class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
     gs_credentials_file = discord.ui.TextInput(
         label="Google Sheets Credentials JSON",
@@ -171,6 +200,7 @@ class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
         required=True,
         placeholder='http://cdn.killua.de/'  # noqa
     )
+
     # sftp_output_path = discord.ui.TextInput(
     #     label="SFTP Output Path",
     #     style=discord.TextStyle.short,
@@ -281,7 +311,7 @@ class ConfirmView(discord.ui.View):
     async def proceed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Handle the 'Proceed' button click."""
         # Show the VRChat credentials modal when user proceeds
-        await interaction.response.send_modal(SetupModalStep1(interaction))
+        await interaction.response.send_modal(SetupModalStep1(interaction))  # noqa
         logger.info(f"User {interaction.user} started the process for guild {interaction.guild.name}")
         self.stop()  # Stops the view from listening for more button clicks
 
