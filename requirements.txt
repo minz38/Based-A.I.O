@@ -5,6 +5,7 @@ pyotp
 vrchatapi
 cryptography
 yt-dlp
+asyncio
 aiohttp
 requests
 gspread
@@ -12,3 +13,5 @@ pydub
 paramiko
 oauth2client
 google-api-python-client
+uvicorn
+fastapi
