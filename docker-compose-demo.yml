@@ -8,6 +8,8 @@ services:
     container_name: based-bot
     image: python:3.12
     working_dir: /code
+    ports:
+      - "8000:8000"
     environment:
 #       The proxy can be commented out, its only necessary if your running this bot in a datacenter.
 #       It can also be commented out if you don't need the /webapp or YouTube Download command
@@ -52,7 +54,6 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "8000:8000"
     volumes:
       - ./cdn:/usr/share/nginx/html:ro  # Mount the data volume
 #      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro  # Custom Nginx config
