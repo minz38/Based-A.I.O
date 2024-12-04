@@ -1,11 +1,13 @@
 import os
 import json
+import uvicorn
+import asyncio
 import discord
+from fastapi import FastAPI
 from discord.ext import commands
 from logger import LoggerManager
 from datetime import datetime
 from typing import Dict, Any
-
 
 # initialize logger
 logger = LoggerManager(name="Bot", level="INFO", log_file="logs/bot.log").get_logger()
@@ -14,6 +16,9 @@ logger = LoggerManager(name="Bot", level="INFO", log_file="logs/bot.log").get_lo
 with open("configs/bot_config.json", "r") as file:
     bot_config: Dict[str, Any] = json.load(file)
     logger.debug(f"Loaded bot configuration: {bot_config}")
+
+# init the FastAPI app
+api: FastAPI = FastAPI()
 
 # Load the bot Configuration
 intents: discord.Intents = discord.Intents.all()
@@ -85,3 +90,11 @@ async def load_extensions() -> None:
 async def on_guild_join(guild) -> None:
     logger.info(f"New guild joined: {guild.name} ({guild.id})")
     await create_guild_config()
+
+
+# Function to start the FastAPI server
+async def start_api():
+    config = uvicorn.Config(api, host="0.0.0.0", port=8000, log_level="info")
+    server = uvicorn.Server(config)
+    print("Starting FastAPI server...")
+    await server.serve()
