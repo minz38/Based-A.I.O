@@ -1,4 +1,3 @@
-import re
 import json
 import os
 import discord
@@ -6,8 +5,12 @@ from discord.ext import commands
 from discord import app_commands
 from bot import bot as shadow_bot
 from logger import LoggerManager
+import dependencies.encryption_handler as encryption_handler
+import shutil  # For removing directories
 
 logger = LoggerManager(name="Archive", level="INFO", log_file="logs/Archive.log").get_logger()
+
+key: bytes = encryption_handler.load_key_from_config()  # Load the encryption key from config
 
 
 class ConfirmArchiveView(discord.ui.View):
@@ -19,7 +22,7 @@ class ConfirmArchiveView(discord.ui.View):
     @discord.ui.button(label="Proceed", style=discord.ButtonStyle.green, emoji='✅')
     async def proceed(self, interaction: discord.Interaction, button: discord.ui.Button):  # noqa
         if interaction.user != self.interaction.user:
-            await interaction.response.send_message("You are not authorized to perform this action.",  # noqa
+            await interaction.response.send_message("You are not authorized to perform this action.",
                                                     ephemeral=True)
             return
         await interaction.response.defer()  # noqa
@@ -29,10 +32,10 @@ class ConfirmArchiveView(discord.ui.View):
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red, emoji='✖️')
     async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):  # noqa
         if interaction.user != self.interaction.user:
-            await interaction.response.send_message("You are not authorized to perform this action.",  # noqa
+            await interaction.response.send_message("You are not authorized to perform this action.",
                                                     ephemeral=True)
             return
-        await interaction.response.send_message("Archiving has been canceled.", ephemeral=True)  # noqa
+        await interaction.response.send_message("Archiving has been canceled.", ephemeral=True)
         self.stop()
 
 
@@ -85,14 +88,16 @@ class ArchiveCog(commands.Cog):
             return
 
         if admin_log_cog:
-            await admin_log_cog.log_interaction(interaction=interaction,
-                                                priority="warn",
-                                                text=f"Channel {channel.name} will be archived to: "
-                                                     f"{archive_category.name}.")
+            await admin_log_cog.log_interaction(
+                interaction=interaction,
+                priority="warn",
+                text=f"Channel {channel.name} will be archived to: {archive_category.name}."
+            )
 
         # Confirmation message
         confirmation_message = (
-            f"📦 **Archive Channel**\n\n"
+            f"📦 **Archive Channel**\n"
+            f"**ADMINISTRATOR PERMISSIONS REQUIRED**\n"
             f"Archiving this channel will **bake all permissions of roles and users into the channel** "
             f"and then move it to the archive category.\n\n"
             f"Do you want to proceed?"
@@ -100,7 +105,7 @@ class ArchiveCog(commands.Cog):
 
         # Define the archive function to be called upon confirmation
         async def proceed_with_archiving():
-            # Collect current permission settings and print them
+            # Collect current permission settings and log them
             previous_overwrites = channel.overwrites.copy()
             logger.info(f"Current permissions: {previous_overwrites}")
             for target, overwrite in previous_overwrites.items():
@@ -144,14 +149,14 @@ class ArchiveCog(commands.Cog):
                     temp_member_overwrites.append(member.id)
 
             # Move the channel to the archive category
-            await channel.edit(category=archive_category)  # noqa
+            await channel.edit(category=archive_category)
 
             # Prepare data for restoring
             previous_permission_data = []
             for target, overwrite in previous_overwrites.items():
                 target_data = {
                     'i': target.id,
-                    't': 'r' if isinstance(target, discord.Role) else 'm',  # 'r' for role, 'm' for member
+                    't': 'r' if isinstance(target, discord.Role) else 'm',
                     'a': overwrite.pair()[0].value,
                     'd': overwrite.pair()[1].value
                 }
@@ -169,21 +174,40 @@ class ArchiveCog(commands.Cog):
                 'pre_cat': previous_category_data,
                 't_m_o': temp_member_overwrites
             }
+            restore_data_str: str = json.dumps(archive_data, indent=4)
+            logger.debug(f"X Restoring data: {restore_data_str}")
 
-            # Send the archive message in the channel
-            archive_message = (
-                "This channel has been archived:\n\n"
-                f"*Restore code:*"
-                f"```json\n{json.dumps(archive_data)}\n```"
+            # Encrypt the archive data
+            encrypted_data: str = encryption_handler.encrypt(restore_data_str, key=key)
+            logger.debug(f"X Encrypted data: {encrypted_data}")
+
+            # Ensure the temp/archive directory exists
+            os.makedirs("temp/archive", exist_ok=True)
+            file_path = "temp/archive/restore.bin"  # Changed extension to .bin
+
+            # Write the encrypted data to a file
+            with open(file_path, 'w') as f:
+                f.write(encrypted_data)
+
+            # Send the file with .bin extension
+            file: discord.File = discord.File(file_path, filename="restore.bin")
+            await channel.send(
+                "The channel has been archived.\n"
+                "The channel is still accessible to users who once had access to it.\n"
+                "*restore file:*",
+                file=file
             )
-            await channel.send(archive_message)
+
+            # Remove the archive directory (leave temp)
+            shutil.rmtree("temp/archive", ignore_errors=True)
+            logger.debug(f"X Temporary archive directory removed.")
 
             if admin_log_cog:
                 await admin_log_cog.log_interaction(interaction=interaction,
                                                     priority="info",
                                                     text=f"Channel {channel.name} archived.")
-
-            await interaction.followup.send("Channel has been archived.", ephemeral=True)
+            await interaction.followup.send("Channel has been archived.\n",
+                                            ephemeral=True)
 
         # Create the confirmation view
         view = ConfirmArchiveView(interaction, proceed_with_archiving)
@@ -198,10 +222,11 @@ class ArchiveCog(commands.Cog):
     async def set_archive(self, interaction: discord.Interaction, category: discord.CategoryChannel):
         admin_log_cog = interaction.client.get_cog("AdminLog")
         if admin_log_cog:
-            await admin_log_cog.log_interaction(interaction=interaction,
-                                                priority="info",
-                                                text=f"Set archive category for guild {interaction.guild.name} to"
-                                                     f" {category.name}.")
+            await admin_log_cog.log_interaction(
+                interaction=interaction,
+                priority="info",
+                text=f"Set archive category for guild {interaction.guild.name} to {category.name}."
+            )
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
         guild_id = interaction.guild.id
         config_file = f'configs/guilds/{guild_id}.json'
@@ -220,7 +245,7 @@ class ArchiveCog(commands.Cog):
         with open(config_file, 'w') as f:
             json.dump(guild_config, f, indent=4)
 
-        await interaction.response.send_message(f"Archive category set to {category.name}.", ephemeral=True)  # noqa
+        await interaction.response.send_message(f"Archive category set to {category.name}.", ephemeral=True)
         logger.info(f"Archive category set to {category.name} ({category.id}) for guild {interaction.guild.name}")
 
 
@@ -234,7 +259,7 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
     # Defer the response
     await interaction.response.defer(ephemeral=True)  # noqa
 
-    # Ensure the message is from the bot and contains the archive data
+    # Ensure the message is from the bot and contains the archive data as an attachment
     if message.author != shadow_bot.user:
         await interaction.followup.send("This message was not sent by the bot.", ephemeral=True)
         return
@@ -245,20 +270,22 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
         await interaction.followup.send("This command can only be used in a text channel.", ephemeral=True)
         return
 
-    # Parse the archive data from the message content
-    try:
-        content = message.content
-        # Extract the JSON data from the code block
-        pattern = r'```json\s*(\{.*?\})\s*```'
-        matches = re.findall(pattern, content, re.DOTALL)
-        if not matches:
-            raise ValueError("Archive data not found in message.")
+    # Look for restore.bin attachment and decrypt it
+    archive_data = None
+    for attachment in message.attachments:
+        if attachment.filename == "restore.bin":
+            encrypted_data = await attachment.read()
+            restore_data = encrypted_data.decode('utf-8')  # decode from bytes to string
+            try:
+                data_str: str = encryption_handler.decrypt(restore_data)
+                archive_data = json.loads(data_str)
+            except Exception:
+                await interaction.followup.send("Failed to decrypt or parse the restore data.", ephemeral=True)
+                return
+            break
 
-        json_data = matches[-1]
-        archive_data = json.loads(json_data)
-
-    except ValueError as _:
-        await interaction.followup.send("Failed to parse archive data from the message.", ephemeral=True)
+    if archive_data is None:
+        await interaction.followup.send("No valid restore.bin file found in the message attachments.", ephemeral=True)
         return
 
     # Restore the previous permissions
@@ -288,13 +315,10 @@ async def restore_channel(interaction: discord.Interaction, message: discord.Mes
 
         await channel.set_permissions(target, overwrite=overwrite)
 
-    # Remove per-user permissions set during archiving
-    temp_member_overwrites = archive_data.get('t_m_o', [])  # temp_member_overwrites
-    # Build a set of member IDs who had per-user overwrites before archiving
-    members_with_preexisting_overwrites = set()
-    for perm_data in previous_permissions:
-        if perm_data.get('t') == 'm':
-            members_with_preexisting_overwrites.add(perm_data.get('i'))
+    # Remove per-user permissions set during archiving that were not originally there
+    temp_member_overwrites = archive_data.get('t_m_o', [])
+    members_with_preexisting_overwrites = {perm_data.get('i') for perm_data in previous_permissions if
+                                           perm_data.get('t') == 'm'}
 
     for member_id in temp_member_overwrites:
         if member_id in members_with_preexisting_overwrites:
