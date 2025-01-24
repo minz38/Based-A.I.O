@@ -119,7 +119,7 @@ class Inactivity(commands.Cog):
         """Load active guilds with voice tracking enabled, their excluded roles, and included users."""
         logger.info("Loading active guilds with voice tracking enabled.")
         for file in os.listdir('configs/guilds'):
-            if file.endswith('.json') and not file.startswith('gs'):
+            if file.endswith('.json') and not file.startswith('gs') and not file.endswith('void.json'):
                 try:
                     guild_id = int(file.split('.')[0])  # Safely attempt to convert to int
                 except ValueError:
@@ -332,7 +332,7 @@ class Inactivity(commands.Cog):
             included_users_str: str = ", ".join([f"<@{user}>" for user in included_users])
             embed = discord.Embed(title=f"Inactive Users Report (Last {days} Days)",
                                   description=f'''
-                                  **Tracked Roles:** {included_roles_str}
+                                  **Excluded Roles:** {included_roles_str}
                                   **Tracked Users:** {included_users_str}
 
                                   This report lists users who haven't sent a message in the last {days} days.
