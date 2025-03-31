@@ -16,6 +16,11 @@ services:
       - HTTP_PROXY=http://<Address:port>
       - HTTPS_PROXY=http://<Address:port>
       - NO_PROXY=localhost,127.0.0.1
+      - API_KEY=None
+      - API_KEY_SECRET=None
+      - ACCESS_TOKEN=None
+      - ACCESS_TOKEN_SECRET=None
+      - BEARER_TOKEN=None
 
     restart: unless-stopped
 
