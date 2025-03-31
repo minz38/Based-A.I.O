@@ -1,4 +1,5 @@
 import discord
+import re
 from discord.ext import commands
 from discord import app_commands
 from logger import LoggerManager
@@ -12,12 +13,32 @@ class TwitterPosting(commands.Cog):
         self.bot = bot
         self.x = Tweet()
 
-    @app_commands.command(name="tweet", description="create & delete Twitter posts")
+    @app_commands.command(name="tweet_create", description="create Twitter posts")
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
-    async def tweet(self, interaction: discord.Interaction, text: str):
+    async def tweet_create(self, interaction: discord.Interaction, text: str, attachments: bool = False) -> None:
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
         msg, status = self.x.post_tweet(f"{text}")
+        if status:
+            await interaction.response.send_message(msg)
+
+        if not status:
+            await interaction.response.send_message(msg)
+
+    @app_commands.command(name="tweet_delete", description="delete a Twitter posts")
+    @app_commands.allowed_installs(guilds=True, users=False)
+    @app_commands.guild_only()
+    async def tweet_delete(self, interaction: discord.Interaction, tweet: str | int) -> None:
+        logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+        try:
+            tweet_id: int = int(re.findall(r'\d+', tweet)[0])
+
+        except IndexError:
+            await interaction.response.send_message("Invalid tweet ID.")
+            return
+
+        status = self.x.delete_tweet(tweet_id)
+        msg = "Tweet deleted successfully." if status else "Failed to delete tweet."
         if status:
             await interaction.response.send_message(msg)
 
