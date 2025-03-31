@@ -74,7 +74,15 @@ class Tweet:
             logger.error(f"Twitter API file upload caused an Error: {e}")
             return False
 
-    def post_tweet(self, message: TWEET_TEXT, attachments: list[str] = None) -> tuple[str, bool]:
+    def delete_tweet(self, tweet_id: int) -> tuple[any, bool]:
+        try:
+            x = self.client.delete_tweet(id=tweet_id)
+            return x, True  # Todo verify return type
+        except tweepy.TweepyException as e:
+            logger.error(f"{e}")
+            return None, False
+
+    def post_tweet(self, message: TWEET_TEXT, attachments: list[str] = None) -> tuple[any, bool]:
         uploaded_files: list[str] = []
 
         if len(message) > 280:
@@ -100,7 +108,7 @@ class Tweet:
 
             if response and hasattr(response, "data"):
                 logger.info("Tweet posted successfully")
-                return "Tweet published successfully", True
+                return response, True
 
         except Exception as e:
             logger.error(f"Failed to publish Tweet: {e}")
