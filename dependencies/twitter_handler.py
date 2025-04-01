@@ -1,12 +1,10 @@
 import tweepy
 from os import getenv
 from typing import Annotated
-# from dotenv import load_dotenv
 from logger import LoggerManager
 
 logger = LoggerManager(name="Twitter Handler", level="INFO", log_file="logs/twitter.log").get_logger()
 
-# load_dotenv()
 API_KEY: str | None = getenv('TWITTER_API_KEY', None)
 API_KEY_SECRET: str | None = getenv('TWITTER_API_KEY_SECRET', None)
 ACCESS_TOKEN: str | None = getenv('TWITTER_ACCESS_TOKEN', None)
@@ -17,7 +15,6 @@ TWITTER_USERNAME: str | None = getenv("TWITTER_USERNAME", None)
 TWEET_TEXT = Annotated[str, " Max Length: 280"]
 TWEET_MAX_IMG_FILESIZE: int = 5  # TODO: JPEG | PNG In Megabytes
 TWEET_MAX_VID_FILESIZE: int = 15  # TODO: MP4, MOV in Megabytes
-
 
 
 class Tweet:
