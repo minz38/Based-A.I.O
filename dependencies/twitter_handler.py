@@ -19,7 +19,19 @@ TWEET_MAX_VID_FILESIZE: int = 15  # TODO: MP4, MOV in Megabytes
 
 
 class Tweet:
+    """
+    A class to handle Twitter API operations.
+
+    This class provides methods to authenticate with the Twitter API,
+    upload media attachments, and post tweets.
+    """
+
     def __init__(self):
+        """
+        Initialize the Tweet class.
+
+        Sets up API, auth, and client attributes and authenticates both API and client.
+        """
         self.api: tweepy.API | None = None
         self.auth: tweepy.OAuth1UserHandler | None = None
         self.client: tweepy.Client | None = None
@@ -27,6 +39,12 @@ class Tweet:
         self.authenticate_client()
 
     def authenticate_api(self) -> bool:
+        """
+        Authenticate the Twitter API using OAuth1UserHandler.
+
+        Returns:
+            bool: True if authentication is successful, False otherwise.
+        """
         self.auth = tweepy.OAuth1UserHandler(API_KEY, API_KEY_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
 
         try:
@@ -45,6 +63,12 @@ class Tweet:
             return False
 
     def authenticate_client(self) -> bool:
+        """
+        Authenticate the Twitter client using provided credentials.
+
+        Returns:
+            bool: True if authentication is successful, False otherwise.
+        """
         client: tweepy.Client = tweepy.Client(
             bearer_token=BEARER_TOKEN,
             consumer_key=API_KEY,
@@ -64,7 +88,15 @@ class Tweet:
             return False
 
     def upload_attachments(self, filepath: str) -> str | bool:
+        """
+        Upload a file attachment to Twitter.
 
+        Args:
+            filepath (str): The path to the file to be uploaded.
+
+        Returns:
+            str | bool: The media ID if upload is successful, False otherwise.
+        """
         try:
             file: tweepy.Media = self.api.media_upload(filename=filepath)
             logger.info(f"Twitter API file uploaded: {file.media_id}")
@@ -83,33 +115,55 @@ class Tweet:
             return None, False
 
     def post_tweet(self, message: TWEET_TEXT, attachments: list[str] = None) -> tuple[any, bool]:
+        """
+        Post a tweet with optional media attachments.
+    
+        This function creates and posts a tweet using the authenticated Twitter client.
+        It can include text and optional media attachments (images or videos).
+    
+        Args:
+            message (TWEET_TEXT): The text content of the tweet. Must not exceed 280 characters.
+            attachments (list[str], optional): A list of file paths to media attachments (images or videos).
+                Defaults to None.
+    
+        Returns:
+            tuple[any, bool]: A tuple containing two elements:
+                - The response from the Twitter API (type varies) or an error message (str)
+                - A boolean indicating whether the tweet was successfully posted (True) or not (False)
+    
+        Raises:
+            ValueError: If the tweet message exceeds 280 characters.
+    
+        Note:
+            - The function will attempt to upload all attachments before posting the tweet.
+            - If any attachment fails to upload, the tweet will not be posted.
+        """
         uploaded_files: list[str] = []
-
+    
         if len(message) > 280:
             raise ValueError("Tweet exceeds 280 characters.")
-
+    
         if attachments:
             uploaded_files: list[str] = []
             for attachment in attachments:
                 x = self.upload_attachments(attachment)
                 if x:
                     uploaded_files.append(x)
-
                 else:
                     return f"'{attachment}' couldn't be uploaded to Twitter", False
-
+    
         tweet_message = message
-
+    
         try:
             response = self.client.create_tweet(
                        text=tweet_message,
                        media_ids=uploaded_files if uploaded_files else None
                 )
-
+    
             if response and hasattr(response, "data"):
                 logger.info("Tweet posted successfully")
                 return response, True
-
+    
         except Exception as e:
             logger.error(f"Failed to publish Tweet: {e}")
             return f"Failed to publish Tweet: {e}", False
