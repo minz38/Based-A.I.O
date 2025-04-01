@@ -12,10 +12,12 @@ API_KEY_SECRET: str | None = getenv('TWITTER_API_KEY_SECRET', None)
 ACCESS_TOKEN: str | None = getenv('TWITTER_ACCESS_TOKEN', None)
 ACCESS_TOKEN_SECRET: str | None = getenv('TWITTER_ACCESS_TOKEN_SECRET', None)
 BEARER_TOKEN: str | None = getenv('TWITTER_BEARER_TOKEN', None)
+TWITTER_USERNAME: str | None = getenv("TWITTER_USERNAME", None)
 
 TWEET_TEXT = Annotated[str, " Max Length: 280"]
 TWEET_MAX_IMG_FILESIZE: int = 5  # TODO: JPEG | PNG In Megabytes
 TWEET_MAX_VID_FILESIZE: int = 15  # TODO: MP4, MOV in Megabytes
+
 
 
 class Tweet:
@@ -35,6 +37,7 @@ class Tweet:
         self.api: tweepy.API | None = None
         self.auth: tweepy.OAuth1UserHandler | None = None
         self.client: tweepy.Client | None = None
+        self.username: str | None = None
         self.authenticate_api()
         self.authenticate_client()
 
@@ -78,14 +81,31 @@ class Tweet:
         )
 
         try:
-            me = client.get_me()
-            logger.info(f"Authenticated Twitter Client as: {me.data.username}")
+            # me = client.get_me()
+            # logger.info(f"Authenticated Twitter Client as: {me.data.username}")
             self.client = client
+            logger.info(f"Twitter Client Authenticated!")
+            # self.username = me.data.username
             return True
 
         except tweepy.TweepyException as e:
             logger.error(f"Failed to authenticate Twitter Client {e}")
             return False
+
+    def get_username(self) -> str | None:
+        if self.username:
+            return self.username
+
+        if TWITTER_USERNAME:
+            return TWITTER_USERNAME
+        try:
+            me = self.client.get_me()
+            self.username = me.data.username
+            return self.username
+
+        except Exception as e:
+            logger.error(f"Failed to get Twitter username: {e}")
+            return None
 
     def upload_attachments(self, filepath: str) -> str | bool:
         """
@@ -139,10 +159,10 @@ class Tweet:
             - If any attachment fails to upload, the tweet will not be posted.
         """
         uploaded_files: list[str] = []
-    
+
         if len(message) > 280:
             raise ValueError("Tweet exceeds 280 characters.")
-    
+
         if attachments:
             uploaded_files: list[str] = []
             for attachment in attachments:
@@ -150,20 +170,20 @@ class Tweet:
                 if x:
                     uploaded_files.append(x)
                 else:
-                    return f"'{attachment}' couldn't be uploaded to Twitter", False
-    
+                    return None, False
+
         tweet_message = message
-    
+
         try:
             response = self.client.create_tweet(
-                       text=tweet_message,
-                       media_ids=uploaded_files if uploaded_files else None
-                )
-    
+                text=tweet_message,
+                media_ids=uploaded_files if uploaded_files else None
+            )
+
             if response and hasattr(response, "data"):
                 logger.info("Tweet posted successfully")
                 return response, True
-    
+
         except Exception as e:
             logger.error(f"Failed to publish Tweet: {e}")
-            return f"Failed to publish Tweet: {e}", False
+            return None, False
