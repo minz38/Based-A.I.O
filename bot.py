@@ -18,7 +18,7 @@ with open("configs/bot_config.json", "r") as file:
     logger.debug(f"Loaded bot configuration: {bot_config}")
 
 # init the FastAPI app
-api: FastAPI = FastAPI()
+# api: FastAPI = FastAPI()
 
 # Load the bot Configuration
 intents: discord.Intents = discord.Intents.all()
@@ -93,8 +93,8 @@ async def on_guild_join(guild) -> None:
 
 
 # Function to start the FastAPI server
-async def start_api():
-    config = uvicorn.Config(api, host="0.0.0.0", port=8000, log_level="info")
-    server = uvicorn.Server(config)
-    print("Starting FastAPI server...")
-    await server.serve()
+# async def start_api():
+#     config = uvicorn.Config(api, host="0.0.0.0", port=8000, log_level="info")
+#     server = uvicorn.Server(config)
+#     print("Starting FastAPI server...")
+#     await server.serve()
