@@ -21,6 +21,7 @@ services:
       - ACCESS_TOKEN=None
       - ACCESS_TOKEN_SECRET=None
       - BEARER_TOKEN=None
+      - TWITTER_USERNAME=None
 
     restart: unless-stopped
 
