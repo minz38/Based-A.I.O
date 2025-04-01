@@ -58,10 +58,10 @@ class TwitterPosting(commands.Cog):
         #  even if the tweet does not exist.
         msg = "Tweet deleted successfully." if status else "Failed to delete tweet."
         if status:
-            await interaction.followup.send(msg,ephemeral=False)  # noqa
+            await interaction.followup.send(msg, ephemeral=False)  # noqa
 
         if not status:
-            await interaction.followup.send(msg,ephemeral=False)  # noqa
+            await interaction.followup.send(msg, ephemeral=False)  # noqa
 
     # @app_commands.command(name="tweet_suggest", description="Create a Tweet and vote for it")
     # @app_commands.allowed_installs(guilds=True, users=False)
@@ -69,7 +69,6 @@ class TwitterPosting(commands.Cog):
     # async def tweet_suggest(self, interaction: discord.Interaction, text: str, attachments: str) -> None:
     #     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
     #     await interaction.response.defer(thinking=True, ephemeral=False)  # noqa
-
 
 
 async def setup(bot):
