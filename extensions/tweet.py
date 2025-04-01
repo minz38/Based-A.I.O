@@ -66,8 +66,10 @@ class TwitterPosting(commands.Cog):
     # @app_commands.command(name="tweet_suggest", description="Create a Tweet and vote for it")
     # @app_commands.allowed_installs(guilds=True, users=False)
     # @app_commands.guild_only()
-    # async def tweet_suggest(self, interaction: discord.Interaction, text: str, attachments: list[str]):
-    #     pass
+    # async def tweet_suggest(self, interaction: discord.Interaction, text: str, attachments: str) -> None:
+    #     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+    #     await interaction.response.defer(thinking=True, ephemeral=False)  # noqa
+
 
 
 async def setup(bot):
