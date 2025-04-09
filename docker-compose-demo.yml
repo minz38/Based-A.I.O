@@ -22,6 +22,10 @@ services:
       - ACCESS_TOKEN_SECRET=None
       - BEARER_TOKEN=None
       - TWITTER_USERNAME=None
+      - MEMBER_ROLE_ID=None
+      - GUEST_ROLE_ID= None
+      - AUDIT_LOG_CHANNEL_ID=
+      - MOD_LOG_CHANNEL_ID=
 
     restart: unless-stopped
 
