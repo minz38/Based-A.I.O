@@ -16,11 +16,11 @@ services:
       - HTTP_PROXY=http://<Address:port>
       - HTTPS_PROXY=http://<Address:port>
       - NO_PROXY=localhost,127.0.0.1
-      - API_KEY=None
-      - API_KEY_SECRET=None
-      - ACCESS_TOKEN=None
-      - ACCESS_TOKEN_SECRET=None
-      - BEARER_TOKEN=None
+      - TWITTER_API_KEY=None
+      - TWITTER_API_KEY_SECRET=None
+      - TWITTER_ACCESS_TOKEN=None
+      - TWITTER_ACCESS_TOKEN_SECRET=None
+      - TWITTER_BEARER_TOKEN=None
       - TWITTER_USERNAME=None
       - MEMBER_ROLE_ID=None
       - GUEST_ROLE_ID= None
