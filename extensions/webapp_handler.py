@@ -2,12 +2,12 @@
 import json
 import discord
 import asyncio
-from bot import api
+# from bot import api
 from pydantic import BaseModel
 from discord import app_commands
 from discord.ext import commands
 from logger import LoggerManager
-from fastapi import HTTPException, status
+# from fastapi import HTTPException, status
 from dependencies.google_sheets_handler import GoogleSheetHandler
 import dependencies.encryption_handler as encryption_handler
 
@@ -117,58 +117,58 @@ class ResponseMessage(BaseModel):
     message: str
 
 
-@api.get("/webapp/{guild_id}", response_model=ResponseMessage, responses={
-    200: {"description": "Success", "content": {"application/json": {"example": {"message": "Success message"}}}},
-    400: {"description": "Bad Request", "content": {"application/json": {"example": {"detail": "Error message"}}}},
-    404: {"description": "Not Found", "content": {"application/json": {"example": {"detail": "Error message"}}}},
-    500: {"description": "Internal Server Error",
-          "content": {"application/json": {"example": {"detail": "Error message"}}}},
-})
-@api.get("/webapp/{guild_id}")
-async def api_pull(guild_id: int):
-    """
-    Executes the function webapp with the operation pull_and_push and returns a success message or error.
-
-    :param guild_id: The ID of the guild.
-    :return: JSONResponse with appropriate status code and message.
-    """
-    # Try to load the guild config file
-    try:
-        with open(f'configs/guilds/{guild_id}.json', 'r') as config_file:
-            config = json.load(config_file)
-    except FileNotFoundError:
-        logger.error(f"Guild config file not found for guild_id {guild_id}")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild config file not found.")
-
-    # Check if the required keys are present in the config
-    if any(k not in config for k in keys):
-        logger.error(f"Guild config is missing keys for guild_id {guild_id}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="The Guild Config is missing or incomplete.")
-
-    try:
-        gs = GoogleSheetHandler(guild_id)
-
-        # Run pull_from_spreadsheet in a thread
-        questions = await asyncio.to_thread(gs.pull_from_spreadsheet)
-
-        if not questions:
-            logger.warning(f"No questions were pulled from the spreadsheet for guild_id {guild_id}")
-            return {"message": "No questions were pulled from the spreadsheet."}
-
-        # Run process_all in a thread
-        result = await asyncio.to_thread(gs.process_all)
-        if result:
-            logger.info(f"Successfully processed and uploaded files for guild_id {guild_id}")
-            return {"message": "All files have been processed and uploaded to the CDN successfully."}
-        else:
-            logger.error(f"Error processing files for guild_id {guild_id}")
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing files.")
-
-    except Exception as e:
-        logger.error(f"Could not pull & push questions for guild_id {guild_id}: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error pulling & pushing questions.")
+# @api.get("/webapp/{guild_id}", response_model=ResponseMessage, responses={
+#     200: {"description": "Success", "content": {"application/json": {"example": {"message": "Success message"}}}},
+#     400: {"description": "Bad Request", "content": {"application/json": {"example": {"detail": "Error message"}}}},
+#     404: {"description": "Not Found", "content": {"application/json": {"example": {"detail": "Error message"}}}},
+#     500: {"description": "Internal Server Error",
+#           "content": {"application/json": {"example": {"detail": "Error message"}}}},
+# })
+# @api.get("/webapp/{guild_id}")
+# async def api_pull(guild_id: int):
+#     """
+#     Executes the function webapp with the operation pull_and_push and returns a success message or error.
+#
+#     :param guild_id: The ID of the guild.
+#     :return: JSONResponse with appropriate status code and message.
+#     """
+#     # Try to load the guild config file
+#     try:
+#         with open(f'configs/guilds/{guild_id}.json', 'r') as config_file:
+#             config = json.load(config_file)
+#     except FileNotFoundError:
+#         logger.error(f"Guild config file not found for guild_id {guild_id}")
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guild config file not found.")
+#
+#     # Check if the required keys are present in the config
+#     if any(k not in config for k in keys):
+#         logger.error(f"Guild config is missing keys for guild_id {guild_id}")
+#         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+#                             detail="The Guild Config is missing or incomplete.")
+#
+#     try:
+#         gs = GoogleSheetHandler(guild_id)
+#
+#         # Run pull_from_spreadsheet in a thread
+#         questions = await asyncio.to_thread(gs.pull_from_spreadsheet)
+#
+#         if not questions:
+#             logger.warning(f"No questions were pulled from the spreadsheet for guild_id {guild_id}")
+#             return {"message": "No questions were pulled from the spreadsheet."}
+#
+#         # Run process_all in a thread
+#         result = await asyncio.to_thread(gs.process_all)
+#         if result:
+#             logger.info(f"Successfully processed and uploaded files for guild_id {guild_id}")
+#             return {"message": "All files have been processed and uploaded to the CDN successfully."}
+#         else:
+#             logger.error(f"Error processing files for guild_id {guild_id}")
+#             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing files.")
+#
+#     except Exception as e:
+#         logger.error(f"Could not pull & push questions for guild_id {guild_id}: {e}")
+#         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#                             detail="Error pulling & pushing questions.")
 
 
 class SetupModalStep1(discord.ui.Modal, title="Setup Webapp Handler"):
