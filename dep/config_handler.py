@@ -7,7 +7,7 @@ logger = LoggerManager(name="Config Handler", level="INFO", log_file="logs/bot.l
 
 # Optional .env variables
 logger.debug(msg="Loading environment variables...")
-DATA_PATH: Path = Path(getenv("DATA_PATH", "/data"))
+DATA_PATH: Path = Path(getenv("DATA_PATH", "./data"))
 CONFIG_PATH: Path = DATA_PATH / Path(getenv("CONFIG_FOLDER_PATH", "config"))
 GUILD_CONFIG: Path = CONFIG_PATH / getenv("GUILD_CONFIG_FOLDER_NAME", "guilds")
 BOT_CONFIG: Path = CONFIG_PATH / getenv("BOT_CONFIG_FOLDER_NAME", "bot")
@@ -143,7 +143,7 @@ class BotConfigHandler:
     @staticmethod
     def create_interactively() -> None:
         logger.info("Creating a new Bot configuration...")
-
+        print(f" ")
         bot_token = input("Enter your Discord Bot Token: ").strip()
         while not bot_token:
             bot_token = input("Bot Token cannot be empty. Try again: ").strip()
