@@ -7,9 +7,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
-from logger import LoggerManager
+from dep.logger import LoggerManager
 
-logger = LoggerManager(name="BackupManager", level="INFO", log_file="logs/BackupManager.log").get_logger()
+logger = LoggerManager(name="BackupManager", level="INFO", log_name="bot").get_logger()
 
 
 class BackupManager(commands.Cog):

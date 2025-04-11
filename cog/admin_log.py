@@ -4,10 +4,10 @@ import discord
 from datetime import datetime
 from discord import app_commands
 from discord.ext import commands
-from logger import LoggerManager
+from dep.logger import LoggerManager
 from typing import Literal
 
-logger = LoggerManager(name="Admin Log", level="INFO", log_file="logs/admin_log.log").get_logger()
+logger = LoggerManager(name="Admin Log", level="INFO", log_name="bot").get_logger()
 
 
 class AdminLog(commands.Cog):

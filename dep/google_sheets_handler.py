@@ -9,9 +9,8 @@ from enum import Enum
 from pydub import AudioSegment
 from logger import LoggerManager
 from oauth2client.service_account import ServiceAccountCredentials
-import dependencies.encryption_handler as encryption_handler
 
-logger = LoggerManager(name="GoogleSheetHandler", level="INFO", log_file="logs/GoogleSheetHandler.log").get_logger()
+logger = LoggerManager(name="Google Sheets", level="INFO", log_name="GoogleSheetHandler").get_logger()
 
 
 class QuestionType(Enum):

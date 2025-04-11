@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from logger import LoggerManager
+from dep.logger import LoggerManager
 
-logger = LoggerManager(name="StatusChanger", level="INFO", log_file="logs/StatusChanger.log").get_logger()
+logger = LoggerManager(name="StatusChanger", level="INFO", log_name="bot").get_logger()
 
 
 # push test

@@ -1,9 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from logger import LoggerManager
+from dep.logger import LoggerManager
 
-logger = LoggerManager(name="Sync", level="INFO", log_file="logs/sync.log").get_logger()
+logger = LoggerManager(name="Sync", level="INFO", log_name="bot").get_logger()
 
 
 class SyncConfirmView(discord.ui.View):

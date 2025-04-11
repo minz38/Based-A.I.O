@@ -1,12 +1,11 @@
 import re
 import discord
 from discord import app_commands
-from discord.ext import commands
-from bot import bot as shadow_bot
-from logger import LoggerManager
-from dependencies.youtube_handler import download_music, delete_temp_files
+from src.bot import bot as shadow_bot
+from dep.logger import LoggerManager
+from dep.youtube_handler import download_music, delete_temp_files
 
-logger = LoggerManager(name="YT-Downloader", level="INFO", log_file="logs/bot.log").get_logger()
+logger = LoggerManager(name="YT-Downloader", level="INFO", log_name="bot").get_logger()
 
 
 # YouTube downloader in Context Menu

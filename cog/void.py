@@ -3,11 +3,11 @@ import discord
 import asyncio
 import datetime
 from pathlib import Path
-from logger import LoggerManager
+from dep.logger import LoggerManager
 from discord import app_commands
 from discord.ext import commands
 
-logger = LoggerManager(name="Void", level="INFO", log_file="logs/Void.log").get_logger()
+logger = LoggerManager(name="Void", level="INFO", log_name="void").get_logger()
 
 
 class VoidCog(commands.Cog):

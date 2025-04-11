@@ -6,13 +6,13 @@ import asyncio
 from pydantic import BaseModel
 from discord import app_commands
 from discord.ext import commands
-from logger import LoggerManager
+from dep.logger import LoggerManager
 # from fastapi import HTTPException, status
-from dependencies.google_sheets_handler import GoogleSheetHandler
-import dependencies.encryption_handler as encryption_handler
+from dep.google_sheets_handler import GoogleSheetHandler
+import dep.encryption_handler as encryption_handler
 
 
-logger = LoggerManager(name="QuestionHandler", level="INFO", log_file="logs/QuestionHandler.log").get_logger()
+logger = LoggerManager(name="Webapp", level="INFO", log_name="webapp").get_logger()
 
 key: bytes = encryption_handler.load_key_from_config()
 

@@ -1,10 +1,10 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from logger import LoggerManager
-from bot import bot as shadow_bot
+from dep.logger import LoggerManager
+from src.bot import bot as shadow_bot
 
-logger = LoggerManager(name="ProfileFetch", level="INFO", log_file="logs/bot.log").get_logger()
+logger = LoggerManager(name="ProfileFetch", level="INFO", log_name="bot").get_logger()
 dateFormat = "%d.%m.%Y"  # Customize this as needed
 
 

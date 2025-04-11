@@ -1,14 +1,13 @@
 # webhook_cog.py
 
-import os
-import json
+from json import dumps
 import discord
-import aiohttp
+from aiohttp import ClientSession
 from discord import app_commands
 from discord.ext import commands
-from logger import LoggerManager
+from dep.logger import LoggerManager
 
-logger = LoggerManager(name="Webhook", level="INFO", log_file="logs/webhook.log").get_logger()
+logger = LoggerManager(name="Webhook", level="INFO", log_name="webhook").get_logger()
 
 
 class WebhookCog(commands.Cog):
@@ -17,10 +16,10 @@ class WebhookCog(commands.Cog):
 
     @staticmethod
     async def send_discord_webhook(webhook_url, content):
-        async with aiohttp.ClientSession() as session:
+        async with ClientSession() as session:
             headers = {'Content-Type': 'application/json'}
             data = {'content': content}
-            await session.post(webhook_url, headers=headers, data=json.dumps(data))
+            await session.post(webhook_url, headers=headers, data=dumps(data))
 
     @app_commands.command(name="webhook", description="Send a webhook notification")
     @app_commands.allowed_installs(guilds=True, users=True)
@@ -33,7 +32,7 @@ class WebhookCog(commands.Cog):
             return
 
         await self.send_discord_webhook(webhook, message)
-        await interaction.response.send_message("Webhook notification sent successfully.") # noqa
+        await interaction.response.send_message("Webhook notification sent successfully.")  # noqa
 
 
 async def setup(bot):

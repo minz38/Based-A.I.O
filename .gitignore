@@ -3,12 +3,12 @@
 /configs/
 /X Note Drops/
 /temp/
-/extensions/__init__.py
+/cog/__init__.py
 /dependencies/__init__.py
 /configs/guilds/
 /.venv/
 /backup/
-/extensions/ffmpeg.exe
+/cog/ffmpeg.exe
 /temp_files/
 /.env
 /docker-compose.yml

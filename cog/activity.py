@@ -4,11 +4,11 @@ import datetime
 import discord
 from discord.ext import commands
 from discord import app_commands
-from logger import LoggerManager
+from dep.logger import LoggerManager
 from typing import Any
 
 # Initialize the logger
-logger = LoggerManager(name="Inactivity", level="INFO", log_file="logs/Inactivity.log").get_logger()
+logger = LoggerManager(name="Inactivity", level="INFO", log_name="bot").get_logger()
 # test commit
 
 class Inactivity(commands.Cog):

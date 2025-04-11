@@ -1,14 +1,19 @@
-import discord
 import re
-from discord.ext import commands
+from os import getenv
+from pathlib import Path
+
+import discord
 from discord import app_commands
-from logger import LoggerManager
-from dependencies.twitter_handler import Tweet
-from dependencies.attachment_dowloader import download_attachment_from_url as dl
+from discord.ext import commands
+from dep.logger import LoggerManager
 
-logger = LoggerManager(name="Twitter Commands", level="INFO", log_file="logs/twitter.log").get_logger()
+from dep.attachment_dowloader import download_attachment_from_url as dl
+from dep.config_handler import DATA_PATH
+from dep.twitter_handler import Tweet
 
-TEMP_PATH = "temp/twitter_attachments/"
+logger = LoggerManager(name="Twitter Commands", level="INFO", log_name="twitter").get_logger()
+
+TEMP_PATH: Path = DATA_PATH / getenv("TEMP_FOLDER_NAME","temp")
 
 
 class TwitterPosting(commands.Cog):
@@ -26,7 +31,7 @@ class TwitterPosting(commands.Cog):
         twitter_attachments = []
 
         for attachment in f:
-            filename = await dl(attachment, TEMP_PATH)
+            filename: Path = await dl(attachment, TEMP_PATH)
             twitter_attachments.append(filename)
 
         msg, status = self.x.post_tweet(message=f"{text}",
@@ -62,14 +67,6 @@ class TwitterPosting(commands.Cog):
 
         if not status:
             await interaction.followup.send(msg, ephemeral=False)  # noqa
-
-    # @app_commands.command(name="tweet_suggest", description="Create a Tweet and vote for it")
-    # @app_commands.allowed_installs(guilds=True, users=False)
-    # @app_commands.guild_only()
-    # async def tweet_suggest(self, interaction: discord.Interaction, text: str, attachments: str) -> None:
-    #     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
-    #     await interaction.response.defer(thinking=True, ephemeral=False)  # noqa
-
 
 async def setup(bot):
     await bot.add_cog(TwitterPosting(bot))

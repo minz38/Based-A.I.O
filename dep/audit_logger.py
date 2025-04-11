@@ -1,10 +1,11 @@
 import os
-import discord
 from typing import Literal
-from logger import LoggerManager
-from bot import bot as shadow_bot
 
-logger = LoggerManager(name="Audit / Mod", level="INFO", log_file="logs/audit.log").get_logger()
+import discord
+
+from logger import LoggerManager
+
+logger = LoggerManager(name="Mod-log", level="INFO", log_name="modlog").get_logger()
 
 # load environment variables
 AUDIT_LOG_CHANNEL_ID: int | None = int(os.getenv("AUDIT_LOG_CHANNEL_ID"))
@@ -44,7 +45,6 @@ async def log_interaction(
         interaction: discord.Interaction,
         log_type: Literal["audit", "mod"],
         reason: str | int | None) -> bool:
-
     """ Sends a log message to the specified audit or moderation log channel. """
 
     if not await verify_functionality(interaction):
@@ -81,4 +81,3 @@ async def log_interaction(
     except discord.Forbidden:
         logger.error(f"Bot lacks permissions to send messages in channel: {channel_id}")
         return False
-

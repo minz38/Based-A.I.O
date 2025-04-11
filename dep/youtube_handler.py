@@ -1,10 +1,10 @@
 import os
 import yt_dlp
-import shutil
+from shutil import rmtree
 from logger import LoggerManager
 import re
 
-logger = LoggerManager(name="Music Downloader", level="info", log_file="logs/youtube_downloader.log").get_logger()
+logger = LoggerManager(name="YT-DLP", level="info", log_name="ytdlp").get_logger()
 
 
 async def download_music(video_url: str) -> str | bool:
@@ -97,5 +97,5 @@ async def delete_temp_files() -> None:
     temp_dir: str = 'temp/youtube'
     if os.path.exists(temp_dir):
         # remove the whole directory and its contents
-        shutil.rmtree(temp_dir)
+        rmtree(temp_dir)
         logger.info("Deleted temporary files")

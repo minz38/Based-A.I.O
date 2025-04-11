@@ -1,4 +1,3 @@
-import os
 import json
 import pyotp
 import vrchatapi
@@ -8,7 +7,7 @@ from vrchatapi.models.two_factor_auth_code import TwoFactorAuthCode
 from vrchatapi.models.two_factor_email_code import TwoFactorEmailCode
 from vrchatapi.api.groups_api import GroupsApi
 from vrchatapi.api.users_api import UsersApi
-from dependencies.encryption_handler import decrypt
+from dep.encryption_handler import decrypt
 from logger import LoggerManager
 
 logger = LoggerManager(name="VrchatApiHandler", level="INFO", log_file="logs/vrc-api.log").get_logger()

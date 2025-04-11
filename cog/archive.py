@@ -3,12 +3,12 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from bot import bot as shadow_bot
-from logger import LoggerManager
-import dependencies.encryption_handler as encryption_handler
+from src.bot import bot as shadow_bot
+from dep.logger import LoggerManager
+import dep.encryption_handler as encryption_handler
 import shutil  # For removing directories
 
-logger = LoggerManager(name="Archive", level="INFO", log_file="logs/Archive.log").get_logger()
+logger = LoggerManager(name="Archive", level="INFO", log_name="bot").get_logger()
 
 key: bytes = encryption_handler.load_key_from_config()  # Load the encryption key from config
 

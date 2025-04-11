@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from discord import app_commands
 from logger import LoggerManager
 from inactive_extensions.vrc_api import VrchatApiHandler
-import dependencies.encryption_handler as encryption_handler
+import dep.encryption_handler as encryption_handler
 
 # Initialize the logger
 logger = LoggerManager(name="VRC-API", level="INFO", log_file="logs/vrc-api.log").get_logger()

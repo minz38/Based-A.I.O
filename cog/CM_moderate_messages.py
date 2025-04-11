@@ -1,9 +1,9 @@
 import discord
-from bot import bot as shadow_bot
-from logger import LoggerManager
-from dependencies.audit_logger import log_interaction
+from src.bot import bot as shadow_bot
+from dep.logger import LoggerManager
+from dep.audit_logger import log_interaction
 
-logger = LoggerManager(name="Moderation", level="INFO", log_file="logs/mod.log").get_logger()
+logger = LoggerManager(name="Moderation", level="INFO", log_name="modlog").get_logger()
 
 
 class ReasonForModerationModal(discord.ui.Modal):

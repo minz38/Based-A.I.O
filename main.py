@@ -1,7 +1,10 @@
-import asyncio
-from dep.logger import LoggerManager
+from asyncio import run as asyncio_run
+from os import getenv
 from dep.config_handler import BotConfigHandler
+from dep.logger import LoggerManager
 
+from dotenv import load_dotenv as ld
+ld()
 
 # Set up logger
 logger = LoggerManager(name="Main", level="INFO", log_name="bot").get_logger()
@@ -10,8 +13,13 @@ def load_or_create_bot_config() -> dict[str, any]:
     handler = BotConfigHandler()
 
     if not handler.config_path.exists():
-        logger.warning("Bot configuration file not found.")
-        BotConfigHandler.create_interactively()
+        if getenv("BOT_TOKEN") and getenv("BOT_PREFIX"):
+            logger.info("Creating bot config from environment variables...")
+            handler = BotConfigHandler()
+            handler.sync_with_env()
+        else:
+            logger.warning("No bot config found and required env vars not set. Entering interactive setup.")
+            BotConfigHandler.create_interactively()
 
     try:
         updated_config = handler.check_extensions()
@@ -40,6 +48,6 @@ if __name__ == "__main__":
         exit()
 
     try:
-        asyncio.run(run_bot(bot_token))
+        asyncio_run(run_bot(bot_token))
     except KeyboardInterrupt:
         logger.info("Bot shutdown via KeyboardInterrupt.")

@@ -3,14 +3,18 @@ from pathlib import Path
 from json import load, dump
 from dep.logger import LoggerManager
 
-logger = LoggerManager(name="Config Handler", level="INFO", log_file="logs/bot.log").get_logger()
+logger = LoggerManager(name="Config Handler", level="INFO", log_name="bot").get_logger()
 
 # Optional .env variables
 logger.debug(msg="Loading environment variables...")
 DATA_PATH: Path = Path(getenv("DATA_PATH", "./data"))
-CONFIG_PATH: Path = DATA_PATH / Path(getenv("CONFIG_FOLDER_PATH", "config"))
+CONFIG_PATH: Path = DATA_PATH / getenv("CONFIG_FOLDER_PATH", "config")
 GUILD_CONFIG: Path = CONFIG_PATH / getenv("GUILD_CONFIG_FOLDER_NAME", "guilds")
 BOT_CONFIG: Path = CONFIG_PATH / getenv("BOT_CONFIG_FOLDER_NAME", "bot")
+
+BOT_TOKEN: str | None = getenv("BOT_TOKEN", None)
+BOT_PREFIX: str | None = getenv("BOT_PREFIX", None)
+BOT_ADMIN_ID: str | None = getenv("BOT_ADMIN_ID", None)
 
 # Create the folder structure
 logger.debug("Checking config folder existence...")
@@ -68,7 +72,7 @@ class GuildConfigHandler:
 
 
 class BotConfigHandler:
-    def __init__(self, config_path: Path = CONFIG_PATH / "bot_config.json"):
+    def __init__(self, config_path: Path = BOT_CONFIG / "bot_config.json"):
         self.config_path: Path = config_path
         self._config: dict[str, any] | None = None
 
@@ -80,6 +84,8 @@ class BotConfigHandler:
         else:
             with open(self.config_path, "r") as f:
                 self._config = load(f)
+
+        self.sync_with_env()  # <- Check .env vars and update if needed
         return self._config
 
     def save_config(self, config_data: dict[str, any]) -> None:
@@ -117,20 +123,17 @@ class BotConfigHandler:
         config = self.get_config()
         config.setdefault("active_extensions", {})
 
-        # Ensure 'extensions' directory exists
-        ext_dir = Path("extensions")
+        ext_dir = Path("cog")
         if not ext_dir.exists():
-            logger.warning("Creating 'extensions' directory.")
+            logger.warning("Creating 'cog' directory.")
             ext_dir.mkdir(parents=True)
             (ext_dir / "__init__.py").touch()
 
-        # Add new extensions
         for file in ext_dir.glob("*.py"):
             if file.name != "__init__.py":
                 ext_name = file.stem
                 config["active_extensions"].setdefault(ext_name, True)
 
-        # Remove missing ones
         current_files = {f.stem for f in ext_dir.glob("*.py")}
         to_remove = [ext for ext in config["active_extensions"] if ext not in current_files]
         for ext in to_remove:
@@ -139,6 +142,38 @@ class BotConfigHandler:
 
         self.save_config(config)
         return config
+
+    def sync_with_env(self) -> None:
+        """Update bot config using environment variables if provided."""
+        updated = False
+        config = self._config or {}
+
+        token_env = getenv("BOT_TOKEN")
+        prefix_env = getenv("BOT_PREFIX")
+        admin_id_env = getenv("BOT_ADMIN_ID")
+
+        if token_env and config.get("bot_token") != token_env:
+            logger.info("Updating bot token from environment variable.")
+            config["bot_token"] = token_env
+            updated = True
+
+        if prefix_env and config.get("prefix") != prefix_env:
+            logger.info("Updating bot prefix from environment variable.")
+            config["prefix"] = prefix_env
+            updated = True
+
+        if admin_id_env:
+            try:
+                admin_id_parsed = int(admin_id_env)
+                if config.get("admin_user_id") != admin_id_parsed:
+                    logger.info("Updating admin user ID from environment variable.")
+                    config["admin_user_id"] = admin_id_parsed
+                    updated = True
+            except ValueError:
+                logger.warning("Invalid BOT_ADMIN_ID in environment; must be an integer.")
+
+        if updated:
+            self.save_config(config)
 
     @staticmethod
     def create_interactively() -> None:
