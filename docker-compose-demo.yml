@@ -1,27 +1,22 @@
-# run this script using "sudo docker-compose up -d"
-# ! On the first run you need to enter the terminal using "sudo docker attach based-bot"
-# ! once you are done with the setup you can leave the terminal using "CTR+P | CTR + Q"
 
-version: "3"
 services:
-  based-AIO-image:
+  based-discord-bot:
     container_name: based-bot
-    image: python:3.12
-    working_dir: /code
-    ports:
-      - "8000:8000"
+    image: registry.minz3.de/minz3/based-a-i-o:latest
     environment:
-#       The proxy can be commented out, its only necessary if your running this bot in a datacenter.
-#       It can also be commented out if you don't need the /webapp or YouTube Download command
-      - HTTP_PROXY=http://<Address:port>
-      - HTTPS_PROXY=http://<Address:port>
-      - NO_PROXY=localhost,127.0.0.1
+      # yt-dlp Proxy, to prevent Bot restrictions
+#      - YT_PROXY_HTTP=http://<Address:port>
+#      - YT_PROXY_HTTPS=https://<Address:port>
+
+      # Twitter credentials
       - TWITTER_API_KEY=None
       - TWITTER_API_KEY_SECRET=None
       - TWITTER_ACCESS_TOKEN=None
       - TWITTER_ACCESS_TOKEN_SECRET=None
       - TWITTER_BEARER_TOKEN=None
       - TWITTER_USERNAME=None
+
+      # Moderator Features
       - MEMBER_ROLE_ID=None
       - GUEST_ROLE_ID= None
       - AUDIT_LOG_CHANNEL_ID=
@@ -29,35 +24,13 @@ services:
 
     restart: unless-stopped
 
-    deploy:
-      resources:
-        limits:
-          memory: 3G
-        reservations:
-          memory: 1G
-
     volumes:
-      - .:/code
+      - ./data:/code
       - ./cdn:/cdn
 
-    command: ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
 
-#   Yes... live with it... i didn't want to make a build file...
-    entrypoint: >
-      sh -c "apt-get update && apt-get install -y ffmpeg && pip install --no-cache-dir -r /code/requirements.txt && exec \"$$0\" \"$$@\""
-
-#   As with the Proxy this whole build section can be commented out if it's not running in a datacenter
-#   or if you don't plan on using the YouTube functionality.
-
-    build:
-      context: .
-      args:
-        HTTP_PROXY: http://<Address:port>
-        HTTPS_PROXY: http://<Address:port>
-        NO_PROXY: localhost,127.0.0.1
-
-    stdin_open: true  # can be removed after the Initial Setup (see line 2)
-    tty: true # can be removed after the Initial Setup (see line 2)
+    stdin_open: true
+    tty: true
 
   based-cdn:
     image: nginx:latest
