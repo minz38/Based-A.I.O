@@ -9,9 +9,16 @@ from enum import Enum
 from pydub import AudioSegment
 from dep.logger import LoggerManager
 from oauth2client.service_account import ServiceAccountCredentials
+from dep.config_handler import DATA_PATH, CONFIG_PATH, GUILD_CONFIG
+from pathlib import Path
+from os import getenv
 
 logger = LoggerManager(name="Google Sheets", level="INFO", log_name="GoogleSheetHandler").get_logger()
 
+TEMP_PATH: Path = DATA_PATH / getenv("TEMP_FOLDER_NAME", "temp")
+GS_TEMP_FOLDER: Path = TEMP_PATH / getenv("GS_TEMP_FOLDER", "gs")
+GOOGLE_CREDENTIAL_FOLDER: Path = DATA_PATH / getenv("GOOGLE_CREDENTIAL_FOLDER", "google-credentials")
+CDN_PATH: Path = Path(getenv("CDN_PATH", "cdn"))
 
 class QuestionType(Enum):
     TEXT_QUESTION = 'TEXT_QUESTION'
@@ -129,7 +136,7 @@ class GoogleSheetHandler:
         self.load_configs()
 
     def load_configs(self):
-        with open(f'configs/guilds/{self.guild_id}.json', 'r') as config_file:
+        with open(GUILD_CONFIG / f"{self.guild_id}.json", 'r') as config_file:
             config = json.load(config_file)
 
         self.gs_worksheet_name = config['gs_worksheet_name']
@@ -172,15 +179,16 @@ class GoogleSheetHandler:
             # setattr(question, 'ID', f'{i}')  # Set attribute 'name' with QuestionX format
             questions.append(question.__dict__())
             logger.debug(f'Question {i} processed')
+        os.makedirs(GS_TEMP_FOLDER, exist_ok=True)
         # dump all the questions into a JSON file
-        with open('data.json', 'w', ) as outfile:
+        with open(GS_TEMP_FOLDER / 'data.json', 'w', ) as outfile:
             json.dump(questions, outfile, indent=4)
 
         return questions
 
     def download_sounds(self, question, index):
         # check if the folder temp_files exist
-        os.makedirs('temp_files', exist_ok=True)
+        os.makedirs(GS_TEMP_FOLDER, exist_ok=True)
 
         # Download the sound file from YouTube and convert it to MP3.
         # We're using youtube-dl for this task.
@@ -191,7 +199,7 @@ class GoogleSheetHandler:
         logger.debug(f'Downloading sound from {sound_url}')
         # try to download the sound file, expect errors. after downloading convert it using ffmpeg.exe
         try:
-            temp_audio_path = f'temp_files/{question_nr}'
+            temp_audio_path: Path = GS_TEMP_FOLDER / f'{question_nr}'
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'outtmpl': temp_audio_path,  # Output file name with .mp3 extension
@@ -212,7 +220,7 @@ class GoogleSheetHandler:
 
     def process_audio(self):
         # Load the questions from data.json
-        with open('data.json', 'r') as f:
+        with open(GS_TEMP_FOLDER / 'data.json', 'r') as f:
             questions = json.load(f)
         # loop through the questions, for every question with the type SOUND_QUESTION
         # change the name of the sound files to the new one and store the file in {page}/{question_nr}.mp3
@@ -221,19 +229,19 @@ class GoogleSheetHandler:
                 try:
                     self.download_sounds(question, index)
                     nr = index
-                    temp_audio_path = f'temp_files/{nr}.mp3'
+                    temp_audio_path = GS_TEMP_FOLDER / f'{nr}.mp3'
                     if os.path.exists(temp_audio_path):
                         # move file to a new folder, if the folder doesn't exist create it
-                        if not os.path.exists(f'{self.gs_worksheet_name}'):
-                            os.makedirs(f'{self.gs_worksheet_name}')
+                        if not os.path.exists(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}'):
+                            os.makedirs(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}')
                         # when the file already exists delete it first
-                        if os.path.exists(f'{self.gs_worksheet_name}/{nr}.mp3'):
-                            os.remove(f'{self.gs_worksheet_name}/{nr}.mp3')
+                        if os.path.exists(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/{nr}.mp3'):
+                            os.remove(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/{nr}.mp3')
                             logger.debug(
                                 f'Moved {temp_audio_path} to '
-                                f'{self.gs_worksheet_name}/{nr}.mp3')
-                        os.rename(temp_audio_path, f'{self.gs_worksheet_name}/{nr}.mp3')
-                        question['sound']['path'] = f'{self.gs_worksheet_name}/{nr}.mp3'
+                                f'{GS_TEMP_FOLDER}/{self.gs_worksheet_name}/{nr}.mp3')
+                        os.rename(temp_audio_path, GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/{nr}.mp3')
+                        question['sound']['path'] = GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/{nr}.mp3'
                     if question['sound']['timestamp'] is not None:
                         self.trim_audio(question['sound']['path'], question['sound']['path'],
                                         question['sound']['timestamp'])
@@ -246,7 +254,7 @@ class GoogleSheetHandler:
                 except Exception as e:
                     logger.error(f'Error processing audio: {e}')
 
-            with open('data.json', 'w') as f:
+            with open(GS_TEMP_FOLDER / 'data.json', 'w') as f:
                 json.dump(questions, f, indent=4)
 
     @staticmethod
@@ -274,7 +282,7 @@ class GoogleSheetHandler:
         trimmed_audio.export(output_file, format="mp3")
 
     def process_picture(self):
-        with open('data.json', 'r') as f:
+        with open(GS_TEMP_FOLDER / 'data.json', 'r') as f:
             questions = json.load(f)
         for index, question in enumerate(questions):
             if question['picture']['path'] and question['picture']['path'].startswith('https://'):
@@ -282,20 +290,20 @@ class GoogleSheetHandler:
                     self.download_picture(question, index)
                     nr = index
                     # temp_picture_path = f'temp_files/{self.gs_worksheet_name}-{nr}.jpg'  # old version
-                    temp_picture_path = f'temp_files/{nr}.jpg'
+                    temp_picture_path = GS_TEMP_FOLDER / f'{nr}.jpg'
                     if os.path.exists(temp_picture_path):
                         # move file to a new folder, if the folder doesn't exist create it
-                        if not os.path.exists(self.gs_worksheet_name):
-                            os.makedirs(self.gs_worksheet_name)
+                        if not os.path.exists(GS_TEMP_FOLDER / self.gs_worksheet_name):
+                            os.makedirs(GS_TEMP_FOLDER / self.gs_worksheet_name)
                         # when the file already exists delete it first
-                        if os.path.exists(f'{self.gs_worksheet_name}/{nr}.jpg'):
-                            os.remove(f'{self.gs_worksheet_name}/{nr}.jpg')
+                        if os.path.exists(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/{nr}.jpg'):
+                            os.remove(f'{GS_TEMP_FOLDER / self.gs_worksheet_name}/{nr}.jpg')
                             logger.debug(
-                                f'File {self.gs_worksheet_name}/{nr}.jpg '
+                                f'File {GS_TEMP_FOLDER}/{self.gs_worksheet_name}/{nr}.jpg '
                                 f'already exists, recreating file')
-                        os.rename(temp_picture_path, f'{self.gs_worksheet_name}/{nr}.jpg')
+                        os.rename(temp_picture_path, GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/{nr}.jpg')
                         question['picture']['path'] = (f'{self.cdn_file_path}'
-                                                       f'{self.gs_worksheet_name}/{nr}.jpg')
+                                                       f'{GS_TEMP_FOLDER / self.gs_worksheet_name}/{nr}.jpg')
                     else:
                         logger.debug(f'No picture found for question {index}')
                 except Exception as e:
@@ -308,13 +316,13 @@ class GoogleSheetHandler:
         # download using requests
         url = question['picture']['path']
         r = requests.get(url, stream=True)
-        with open(f'temp_files/{index}.jpg', 'wb') as f:
+        with open(GS_TEMP_FOLDER / f'{index}.jpg', 'wb') as f:
             for chunk in r.iter_content(chunk_size=1024):
                 if chunk:  # filter out keep-alive new chunks
                     f.write(chunk)
 
     def move_json(self):
-        with open('data.json', 'r') as f:
+        with open(GS_TEMP_FOLDER / 'data.json', 'r') as f:
             data = json.load(f)
 
         # Check and remove the 'timestamp' key in the 'sound' dictionary
@@ -322,13 +330,13 @@ class GoogleSheetHandler:
             if 'sound' in question and 'timestamp' in question['sound']:
                 del question['sound']['timestamp']
 
-        with open('data.json', 'w') as f:
+        with open(GS_TEMP_FOLDER / 'data.json', 'w') as f:
             json.dump(data, f, indent=4)
-        if not os.path.exists(self.gs_worksheet_name):
-            os.makedirs(self.gs_worksheet_name)
-        if os.path.exists(f'{self.gs_worksheet_name}/data.json'):
-            os.remove(f'{self.gs_worksheet_name}/data.json')
-        os.rename('data.json', f'{self.gs_worksheet_name}/data.json')
+        if not os.path.exists(GS_TEMP_FOLDER / self.gs_worksheet_name):
+            os.makedirs(GS_TEMP_FOLDER / self.gs_worksheet_name)
+        if os.path.exists(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/data.json'):
+            os.remove(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}/data.json')
+        os.rename(GS_TEMP_FOLDER / 'data.json', f'{GS_TEMP_FOLDER / self.gs_worksheet_name}/data.json')
 
     @staticmethod
     def zip_folder(folder_path: str, output_path: str):
@@ -341,13 +349,13 @@ class GoogleSheetHandler:
         logger.info(f"Zipped {folder_path} to {output_path}")
 
     async def delete_zip_folder(self):
-        if os.path.exists(f'{self.gs_worksheet_name}.zip'):
-            os.remove(f"{self.gs_worksheet_name}.zip")
-            logger.info(f"Deleted Zip: {self.gs_worksheet_name}.zip")
+        if os.path.exists(GS_TEMP_FOLDER / f'{self.gs_worksheet_name}.zip'):
+            os.remove(GS_TEMP_FOLDER / f"{self.gs_worksheet_name}.zip")
+            logger.info(f"Deleted Zip: {GS_TEMP_FOLDER / self.gs_worksheet_name}.zip")
         # delete folder
-        if os.path.exists(self.gs_worksheet_name):
-            shutil.rmtree(self.gs_worksheet_name)
-            logger.info(f"Deleted Folder: {self.gs_worksheet_name}")
+        if os.path.exists(GS_TEMP_FOLDER/ self.gs_worksheet_name):
+            shutil.rmtree(GS_TEMP_FOLDER / self.gs_worksheet_name)
+            logger.info(f"Deleted Folder: {GS_TEMP_FOLDER / self.gs_worksheet_name}")
 
     def push_question_to_gs(self, data):
         try:
@@ -362,22 +370,22 @@ class GoogleSheetHandler:
     def feed_cdn(self):
         try:
             # delete the folder if it exists and recreate it
-            if os.path.exists(f'cdn/{self.gs_worksheet_name}'):
-                shutil.rmtree(f'cdn/{self.gs_worksheet_name}')
+            if os.path.exists(CDN_PATH / f'{self.gs_worksheet_name}'):
+                shutil.rmtree(CDN_PATH / f'{self.gs_worksheet_name}')
             # create new directory in cdn and move files to it
 
-            local_directory = f'{self.gs_worksheet_name}'
+            local_directory = GS_TEMP_FOLDER / f'{self.gs_worksheet_name}'
 
             # move files to cdn directory
-            shutil.move(local_directory, f'cdn/')
+            shutil.move(local_directory, CDN_PATH)
             logger.info(f"Moved files to CDN directory: {self.gs_worksheet_name}")
         except Exception as e:
             logger.error(f"Failed to move files to CDN directory: {str(e)}")
             return False
 
     def cleanup(self):
-        cleanup_directory = f'cdn/{self.gs_worksheet_name}'
-        cleanup_directory_2 = f'temp_files'
+        cleanup_directory = CDN_PATH / f'{self.gs_worksheet_name}'
+        cleanup_directory_2 = GS_TEMP_FOLDER
         try:
             # delete the folder if it exists
             if os.path.exists(cleanup_directory):
