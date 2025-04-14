@@ -1,0 +1,46 @@
+stages:
+  - build
+  - test
+  - push
+  - cleanup
+
+variables:
+  IMAGE_NAME: registry.minz3.de/minz3/based-aio
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+  LATEST_TAG: rework
+
+# Enable Docker-in-Docker
+default:
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" registry.minz3.de
+
+build:
+  stage: build
+  script:
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:$LATEST_TAG
+
+test:
+  stage: test
+  script:
+    - docker images | grep $IMAGE_NAME
+    - echo "Image built successfully."
+
+push:
+  stage: push
+  script:
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+    - docker push $IMAGE_NAME:$LATEST_TAG  # <- Push latest tag
+  only:
+    - config_rework  # or "master", or adjust to your default branch
+
+cleanup:
+  stage: cleanup
+  script:
+    - docker rmi $IMAGE_NAME:$IMAGE_TAG || true
+    - docker rmi $IMAGE_NAME:$LATEST_TAG || true
+  only:
+    - config_rework
