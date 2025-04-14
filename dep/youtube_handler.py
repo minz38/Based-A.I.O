@@ -1,10 +1,13 @@
 import os
 import yt_dlp
 from shutil import rmtree
-from logger import LoggerManager
+from dep.logger import LoggerManager
 import re
 
 logger = LoggerManager(name="YT-DLP", level="info", log_name="ytdlp").get_logger()
+
+YT_PROXY_HTTP: str | None = os.getenv("YT_PROXY_HTTP")
+YT_PROXY_HTTPS: str | None = os.getenv("YT_PROXY_HTTPS")
 
 
 async def download_music(video_url: str) -> str | bool:
@@ -22,7 +25,9 @@ async def download_music(video_url: str) -> str | bool:
     The function logs the progress and any errors encountered during the download process.
     """
     logger.info(f"Downloading music from {video_url}")
-    music_output_path: str = 'temp/youtube/music'
+    music_output_path: str = 'temp/youtube/music'  # todo change to env variable
+
+    proxy = YT_PROXY_HTTPS or YT_PROXY_HTTP
 
     os.makedirs(music_output_path, exist_ok=True)
 
@@ -38,6 +43,11 @@ async def download_music(video_url: str) -> str | bool:
             'preferredquality': '192',
         }]
     }
+
+    # Set proxy if available
+    if proxy:
+        ydl_opts['proxy'] = proxy
+        logger.info(f"Using proxy: {proxy}")
 
     try:
         # download the audio using yt_dlp, return the filepath once its downloaded
@@ -58,6 +68,7 @@ async def download_video(video_url: str) -> str | bool:
     video_output_path: str = 'temp/youtube/video'
 
     os.makedirs(video_output_path, exist_ok=True)
+    proxy = YT_PROXY_HTTPS or YT_PROXY_HTTP
 
     # Format: mp4, convert to mp4 using ffmpeg
     ydl_opts = {
@@ -67,7 +78,10 @@ async def download_video(video_url: str) -> str | bool:
         'quiet': True,
         # 'ffmpeg_location': path_to_ffmpeg,
     }
-
+    # Set proxy if available
+    if proxy:
+        ydl_opts['proxy'] = proxy
+        logger.info(f"Using proxy: {proxy}")
     try:
         # download the video using yt_dlp, return the filepath once its downloaded
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
