@@ -5,7 +5,7 @@ stages:
   - cleanup
 
 variables:
-  IMAGE_NAME: registry.minz3.de/minz3/based-aio
+  IMAGE_NAME: registry.minz3.de/minz3/based-a-i-o
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
   LATEST_TAG: rework
 
