@@ -3,13 +3,15 @@ from typing import Literal
 
 import discord
 
-from logger import LoggerManager
+from dep.logger import LoggerManager
 
 logger = LoggerManager(name="Mod-log", level="INFO", log_name="modlog").get_logger()
 
 # load environment variables
-AUDIT_LOG_CHANNEL_ID: int | None = int(os.getenv("AUDIT_LOG_CHANNEL_ID"))
-MOD_LOG_CHANNEL_ID: int | None = int(os.getenv("MOD_LOG_CHANNEL_ID"))
+AUDIT_LOG_CHANNEL_ID: str | None = os.getenv("AUDIT_LOG_CHANNEL_ID", 0)
+MOD_LOG_CHANNEL_ID: str | None = os.getenv("MOD_LOG_CHANNEL_ID", 0)
+audit_channel_id: int = int(AUDIT_LOG_CHANNEL_ID)
+mod_channel_id: int = int(MOD_LOG_CHANNEL_ID)
 
 
 async def verify_functionality(interaction: discord.Interaction) -> bool:
@@ -26,8 +28,8 @@ async def verify_functionality(interaction: discord.Interaction) -> bool:
 
     try:
         audit_channel, mod_channel = None, None
-        audit_channel = guild.get_channel(AUDIT_LOG_CHANNEL_ID)
-        mod_channel = guild.get_channel(MOD_LOG_CHANNEL_ID)
+        audit_channel = guild.get_channel(audit_channel_id)
+        mod_channel = guild.get_channel(mod_channel_id)
 
     except discord.NotFound:
         logger.error(f"Either AUDIT_LOG_CHANNEL_ID or MOD_LOG_CHANNEL_ID points to non-existent channels.")
@@ -52,10 +54,10 @@ async def log_interaction(
 
     match log_type:
         case "audit":
-            channel_id = AUDIT_LOG_CHANNEL_ID
+            channel_id = audit_channel_id
             logger.debug(f"Sending audit log message to channel: {channel_id}")
         case "mod":
-            channel_id = MOD_LOG_CHANNEL_ID
+            channel_id = mod_channel_id
             logger.debug(f"Sending moderation log message to channel: {channel_id}")
         case _:
             logger.error("Invalid log type specified.")
