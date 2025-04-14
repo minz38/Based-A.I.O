@@ -3,7 +3,7 @@ from typing import Annotated
 
 import tweepy
 
-from logger import LoggerManager
+from dep.logger import LoggerManager
 
 logger = LoggerManager(name="Twitter Handler", level="INFO", log_name="twitter").get_logger()
 
@@ -39,8 +39,9 @@ class Tweet:
         self.auth: tweepy.OAuth1UserHandler | None = None
         self.client: tweepy.Client | None = None
         self.username: str | None = None
-        self.authenticate_api()
-        self.authenticate_client()
+        # Authenticate the API and Client if the env variables are set
+        if self.api: self.authenticate_api()
+        if self.api: self.authenticate_client()
 
     def authenticate_api(self) -> bool:
         """
