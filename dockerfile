@@ -17,5 +17,5 @@ COPY dep ./dep
 RUN adduser -D app
 USER app
 
-CMD ["python", "-m", "main", "--host", "0.0.0.0", "--reload"]
+CMD ["python", "-u", "main.py"]
 
