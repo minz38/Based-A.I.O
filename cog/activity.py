@@ -6,10 +6,16 @@ from discord.ext import commands
 from discord import app_commands
 from dep.logger import LoggerManager
 from typing import Any
+from pathlib import Path
+from dep.config_handler import DATA_PATH, GUILD_CONFIG
+from os import getenv
 
 # Initialize the logger
 logger = LoggerManager(name="Inactivity", level="INFO", log_name="bot").get_logger()
 # test commit
+
+ACTIVITY_VOICE_TRACKING_FOLDER: Path = DATA_PATH / getenv("ACTIVITY_VOICE_TRACKING_FOLDER", "activity")
+
 
 class Inactivity(commands.Cog):
     def __init__(self, bot):
@@ -20,8 +26,8 @@ class Inactivity(commands.Cog):
         self.included_users: dict[int, list[int]] = {}  # Dictionary to store included users per guild
 
         # Ensure the activity folder exists
-        if not os.path.exists('activity'):
-            os.makedirs('activity')
+        if not os.path.exists(ACTIVITY_VOICE_TRACKING_FOLDER):
+            os.makedirs(ACTIVITY_VOICE_TRACKING_FOLDER)
             logger.info("Created activity folder")
 
     async def cog_load(self):
@@ -58,7 +64,7 @@ class Inactivity(commands.Cog):
     async def store_voice_times(self, guild_id: int, member: Any, time: Any) -> None:
         if guild_id in self.active_guilds:
             # File path where the activity data is stored
-            file_path: str = f'activity/{guild_id}.json'
+            file_path: Path = ACTIVITY_VOICE_TRACKING_FOLDER / f'{guild_id}.json'
 
             # Load existing data from the file if it exists, or initialize an empty dictionary
             if os.path.exists(file_path):
@@ -68,7 +74,8 @@ class Inactivity(commands.Cog):
                 voice_data: dict = {}
 
             user_id: str = str(member.id)  # Use the user ID as a string
-            date: str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")  # Get the current year and month in YYYY-MM
+            date: str = datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y-%m")  # Get the current year and month in YYYY-MM
 
             # If the user doesn't have an entry in the JSON, initialize it
             if user_id not in voice_data:
@@ -88,7 +95,7 @@ class Inactivity(commands.Cog):
     async def increment_voice_connections(self, guild_id: int, member: Any) -> None:
         """Increment the voicechannel_connections counter for a user."""
         if guild_id in self.active_guilds:
-            file_path: str = f'activity/{guild_id}.json'
+            file_path: Path = ACTIVITY_VOICE_TRACKING_FOLDER / f'{guild_id}.json'
 
             # Load existing data from the file if it exists, or initialize an empty dictionary
             if os.path.exists(file_path):
@@ -118,7 +125,7 @@ class Inactivity(commands.Cog):
     async def load_active_guilds(self):
         """Load active guilds with voice tracking enabled, their excluded roles, and included users."""
         logger.info("Loading active guilds with voice tracking enabled.")
-        for file in os.listdir('configs/guilds'):
+        for file in os.listdir(GUILD_CONFIG):
             if file.endswith('.json') and not file.startswith('gs') and not file.endswith('void.json'):
                 try:
                     guild_id = int(file.split('.')[0])  # Safely attempt to convert to int
@@ -126,7 +133,7 @@ class Inactivity(commands.Cog):
                     logger.error(f"Invalid guild ID in filename: {file}")
                     continue  # Skip invalid file names
 
-                with open(f'configs/guilds/{file}', 'r') as f:
+                with open(GUILD_CONFIG / file, 'r') as f:
                     guild_config = json.load(f)
                     # If 'voice_tracking' is in active_extensions, add the guild_id to active_guilds
                     if "voice_tracking" in guild_config.get('active_extensions', []):
@@ -165,7 +172,7 @@ class Inactivity(commands.Cog):
                 if guild_id not in self.active_guilds:
                     self.active_guilds.append(guild_id)
                     # update active_extensions in the guild config file configs/guilds/{guild_id}.json
-                    config_file = f'configs/guilds/{guild_id}.json'
+                    config_file = GUILD_CONFIG / f'{guild_id}.json'
                     if os.path.exists(config_file):
                         with open(config_file, 'r') as file:
                             guild_config = json.load(file)
@@ -187,7 +194,7 @@ class Inactivity(commands.Cog):
                 guild_id = interaction.guild.id
                 if guild_id in self.active_guilds:
                     self.active_guilds.remove(guild_id)
-                    config_file = f'configs/guilds/{guild_id}.json'
+                    config_file = GUILD_CONFIG / f'{guild_id}.json'
                     if os.path.exists(config_file):
                         with open(config_file, 'r') as f:
                             guild_config = json.load(f)
@@ -248,7 +255,7 @@ class Inactivity(commands.Cog):
         await interaction.response.defer(thinking=True)  # noqa
 
         # Load voice activity data from the JSON file for the guild
-        voice_data_file: str = f'activity/{guild_id}.json'
+        voice_data_file: Path = ACTIVITY_VOICE_TRACKING_FOLDER / '{guild_id}.json'
 
         if os.path.isfile(voice_data_file):
             with open(voice_data_file, 'r') as f:
@@ -459,7 +466,8 @@ class Inactivity(commands.Cog):
                 await self.update_guild_config_included_users(guild_id, included_users)
                 await interaction.response.send_message(f"User {user.mention} added to the inclusion list.")  # noqa
             else:
-                await interaction.response.send_message(f"User {user.mention} is already in the inclusion list.")  # noqa
+                await interaction.response.send_message(
+                    f"User {user.mention} is already in the inclusion list.")  # noqa
 
         elif action.lower() == "remove":
             if user is None:
@@ -491,7 +499,7 @@ class Inactivity(commands.Cog):
 
     async def update_guild_config_excluded_roles(self, guild_id: int, excluded_roles: list[int]) -> None:
         """Update the guild's config file with the new list of excluded roles."""
-        config_file = f'configs/guilds/{guild_id}.json'
+        config_file: Path = GUILD_CONFIG / f"{guild_id}.json"
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 guild_config = json.load(f)
@@ -504,7 +512,7 @@ class Inactivity(commands.Cog):
 
     async def update_guild_config_included_users(self, guild_id: int, included_users: list[int]) -> None:
         """Update the guild's config file with the new list of included users."""
-        config_file = f'configs/guilds/{guild_id}.json'
+        config_file: Path = GUILD_CONFIG / f"{guild_id}.json"
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 guild_config = json.load(f)
