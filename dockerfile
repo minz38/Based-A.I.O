@@ -13,9 +13,5 @@ COPY main.py ./
 COPY src ./src
 COPY dep ./dep
 
-# Create and use non-root user
-RUN adduser -D app
-USER app
-
 CMD ["python", "-u", "main.py"]
 

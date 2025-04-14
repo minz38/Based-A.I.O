@@ -25,8 +25,8 @@ services:
     restart: unless-stopped
 
     volumes:
-      - ./data:/code
-      - ./cdn:/cdn
+      - ./data:/code/data
+      - ./cdn:/code/cdn
 
 
     stdin_open: true
