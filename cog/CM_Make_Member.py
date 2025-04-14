@@ -7,14 +7,25 @@ from dep.audit_logger import log_interaction
 logger = LoggerManager(name="Moderation", level="INFO", log_name="modlog").get_logger()
 
 # Load environment variables
-MEMBER_ROLE_ID: int = int(os.getenv("MEMBER_ROLE_ID"))
-GUEST_ROLE_ID: int = int(os.getenv("GUEST_ROLE_ID"))
+MEMBER_ROLE_ID: int = os.getenv("MEMBER_ROLE_ID", 0)
+GUEST_ROLE_ID: int = os.getenv("GUEST_ROLE_ID", 0)
+
+
+async def check_env(interaction) -> bool:
+    if MEMBER_ROLE_ID == 0 or GUEST_ROLE_ID == 0:
+        await interaction.response.send_message("Env variables are missing, COG is not loaded correctly")
+        return False
+    else:
+        return True
 
 
 @shadow_bot.tree.context_menu(name="Make Member")
 async def set_member_role(interaction: discord.Interaction, user: discord.User):
     """Assigns the 'Member' role to a user and removes 'Guest' role if they have it."""
     guild: discord.Guild = interaction.guild
+
+    if not check_env(interaction):
+        return
 
     if not guild:
         await interaction.response.send_message("This command must be used in a server.", ephemeral=True)
@@ -61,7 +72,8 @@ async def set_member_role(interaction: discord.Interaction, user: discord.User):
 async def set_guest_role(interaction: discord.Interaction, user: discord.User):
     """Assigns the 'Guest' role to a user and removes 'Member' role if they have it."""
     guild = interaction.guild
-
+    if not check_env(interaction):
+        return
     if not guild:
         await interaction.response.send_message("This command must be used in a server.", ephemeral=True)
         return
