@@ -7,7 +7,7 @@ import gspread
 import requests
 from enum import Enum
 from pydub import AudioSegment
-from logger import LoggerManager
+from dep.logger import LoggerManager
 from oauth2client.service_account import ServiceAccountCredentials
 
 logger = LoggerManager(name="Google Sheets", level="INFO", log_name="GoogleSheetHandler").get_logger()
