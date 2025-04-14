@@ -6,9 +6,11 @@ from pathlib import Path
 from dep.logger import LoggerManager
 from discord import app_commands
 from discord.ext import commands
+from dep.config_handler import GUILD_CONFIG
 
 logger = LoggerManager(name="Void", level="INFO", log_name="void").get_logger()
 
+VOID_CONFIG_FOLDER: Path = GUILD_CONFIG
 
 class VoidCog(commands.Cog):
     def __init__(self, bot) -> None:
@@ -21,7 +23,7 @@ class VoidCog(commands.Cog):
     # Utility function to get the config path for each guild
     @staticmethod
     def get_config_path(guild_id) -> Path:
-        return Path(f"configs/guilds/{guild_id}_void.json")
+        return Path(GUILD_CONFIG / f"{guild_id}_void.json")
 
     # Load all configurations on startup
     def load_all_configs(self) -> None:
