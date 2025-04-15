@@ -1,22 +1,19 @@
-# import os
-# import json
-import discord
-from pathlib import Path
+#import discord
+from discord import Intents
 from discord.ext import commands
 from dep.logger import LoggerManager
 from dep.config_handler import BotConfigHandler, GuildConfigHandler
 from datetime import datetime
-from typing import Dict, Any
 
 # initialize logger
 logger = LoggerManager(name="Bot", level="INFO", log_name="bot").get_logger()
 
 # load the bot configuration
-bot_config: dict[str, Any] = BotConfigHandler().get_config()
+bot_config: dict[str, any] = BotConfigHandler().get_config()
 logger.debug(f"Loaded bot configuration: {bot_config}")
 
 # Load the bot Configuration
-intents: discord.Intents = discord.Intents.all()
+intents: Intents = Intents.all()
 
 bot: commands.Bot = commands.Bot(
     command_prefix=bot_config["prefix"], intents=intents, help_command=None)

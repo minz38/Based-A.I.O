@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 from dep.logger import LoggerManager
 from typing import Optional, Annotated
-from dep.google_sheets_handler import GoogleSheetHandler
+from dep.gs_handler import GoogleSheetHandler
 
 logger = LoggerManager(name="Submit Question", level="INFO", log_name="webapp").get_logger()
 

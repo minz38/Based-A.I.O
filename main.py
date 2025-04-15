@@ -1,15 +1,14 @@
 from asyncio import run as asyncio_run
 from os import getenv
+from typing import Any
 from dep.config_handler import BotConfigHandler
 from dep.logger import LoggerManager
-
-from dotenv import load_dotenv as ld
-ld()
 
 # Set up logger
 log = LoggerManager(name="Main", level="INFO", log_name="bot").get_logger()
 
-def load_or_create_bot_config() -> dict[str, any]:
+
+def load_or_create_bot_config() -> dict[str, Any]:
     handler = BotConfigHandler()
 
     if not handler.config_path.exists():
@@ -28,6 +27,7 @@ def load_or_create_bot_config() -> dict[str, any]:
         log.error(f"Error while loading/updating bot configuration: {e}")
         exit()
 
+
 async def run_bot(token: str):
     # Optional: add async startup logic here
     # from bot import start_api
@@ -38,6 +38,7 @@ async def run_bot(token: str):
         await bot.start(token)
     except Exception as e:
         log.error(f"Error running the bot: {e}")
+
 
 if __name__ == "__main__":
     bot_config = load_or_create_bot_config()
