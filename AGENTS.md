@@ -36,4 +36,3 @@ python -m py_compile $(git ls-files '*.py')
 ```
 
 Run the relevant command and make a best effort to confirm success before committing changes.
-
