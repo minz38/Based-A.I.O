@@ -6,7 +6,7 @@ version: "3"
 services:
   based-AIO-image:
     container_name: based-bot
-    image: python:3.12
+    image: python:3.13
     working_dir: /code
     ports:
       - "8000:8000"
