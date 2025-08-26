@@ -20,14 +20,25 @@ class ImageUpvote(commands.Cog):
         self.bot = bot
         self._uploaded_messages: set[int] = set()
 
-    async def handle_upload(self, message: discord.Message) -> None:
+    async def handle_upload(
+        self,
+        message: discord.Message,
+        source: str,
+        interaction: discord.Interaction | None = None,
+    ) -> None:
         images = [
             att
             for att in message.attachments
             if att.content_type and att.content_type.startswith("image")
         ]
+        admin_log_cog = (
+            interaction.client.get_cog("AdminLog")
+            if interaction
+            else self.bot.get_cog("AdminLog")
+        )
         for idx, attachment in enumerate(images, start=1):
             data = await attachment.read()
+            size_mb = len(data) / (1024 * 1024)
             extension = Path(attachment.filename).suffix
             file_path = UPLOAD_DIR / (
                 f"{message.author.id}-{message.id}_{idx:02d}{extension}"
@@ -37,6 +48,18 @@ class ImageUpvote(commands.Cog):
             logger.info(
                 f"Saved message {message.id} attachment as {file_path.name}."
             )
+            if admin_log_cog:
+                event = (
+                    "Image force uploaded"
+                    if source == "force"
+                    else "Image uploaded via upvotes"
+                )
+                await admin_log_cog.log_event(
+                    message.guild.id,
+                    priority="info",
+                    event_name=event,
+                    event_status=f"{file_path.name} - {size_mb:.2f} MB",
+                )
         self._uploaded_messages.add(message.id)
         await message.add_reaction("✅")
 
@@ -75,7 +98,7 @@ class ImageUpvote(commands.Cog):
                 arrow_count = reaction.count
                 break
         if arrow_count >= UPVOTE_THRESHOLD:
-            await self.handle_upload(message)
+            await self.handle_upload(message, source="upvote")
 
 
 @shadow_bot.tree.context_menu(name="Force Upload")
@@ -97,7 +120,7 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
-    await cog.handle_upload(message)
+    await cog.handle_upload(message, source="force", interaction=interaction)
     await interaction.followup.send("Image saved to CDN.", ephemeral=True)
 
 
