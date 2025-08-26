@@ -24,11 +24,15 @@ class ImageUpvote(commands.Cog):
         for attachment in message.attachments:
             if attachment.content_type and attachment.content_type.startswith("image"):
                 data = await attachment.read()
-                file_path = UPLOAD_DIR / f"{message.id}_{attachment.filename}"
+                extension = Path(attachment.filename).suffix
+                file_path = UPLOAD_DIR / f"{message.author.id}-{message.id}{extension}"
                 with open(file_path, "wb") as f:
                     f.write(data)
-        logger.info(f"Saved message {message.id} attachments to {UPLOAD_DIR}.")
-        self._uploaded_messages.add(message.id)
+                logger.info(
+                    f"Saved message {message.id} attachment as {file_path.name}."
+                )
+                self._uploaded_messages.add(message.id)
+                break
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
