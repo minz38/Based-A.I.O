@@ -6,7 +6,6 @@ from logger import LoggerManager
 import os
 from pathlib import Path
 
-CHANNEL_ID = int(os.getenv("IMAGE_UPVOTE_CHANNEL_ID", "1003337674008055919"))
 UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
 UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "4"))
 UPLOAD_DIR = Path("cdn/ImageUploads")
@@ -58,15 +57,16 @@ class ImageUpvote(commands.Cog):
                     message.guild.id,
                     priority="info",
                     event_name=event,
-                    event_status=f"{file_path.name} - {size_mb:.2f} MB",
+                    event_status=(
+                        f"{file_path.name} - {size_mb:.2f} MB\n"
+                        f"[Message Link]({message.jump_url})"
+                    ),
                 )
         self._uploaded_messages.add(message.id)
         await message.add_reaction("✅")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
-        if payload.channel_id != CHANNEL_ID:
-            return
         if payload.emoji.name != UPVOTE_EMOJI_NAME:
             return
         channel = self.bot.get_channel(payload.channel_id)
@@ -108,10 +108,6 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
     logger.info(f"Force upload triggered by {interaction.user} for message {message.id}")
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
-        return
-    if message.channel.id != CHANNEL_ID:
-        await interaction.response.send_message("This command can only be used in the configured channel.",
-                                                ephemeral=True)
         return
     if not any(att.content_type and att.content_type.startswith("image") for att in message.attachments):
         await interaction.response.send_message("The selected message does not contain an image.", ephemeral=True)
