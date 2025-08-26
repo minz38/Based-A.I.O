@@ -3,10 +3,14 @@ from discord.ext import commands
 from discord import app_commands
 from bot import bot as shadow_bot
 from logger import LoggerManager
+import os
+from pathlib import Path
 
-CHANNEL_ID = 1003337674008055919
-UPVOTE_EMOJI_NAME = "arrow_upvote"
-UPVOTE_THRESHOLD = 5
+CHANNEL_ID = int(os.getenv("IMAGE_UPVOTE_CHANNEL_ID", "1003337674008055919"))
+UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
+UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "5"))
+UPLOAD_DIR = Path("cdn/ImageUploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = LoggerManager(name="ImageUpvote", level="INFO", log_file="logs/ImageUpvote.log").get_logger()
 
@@ -17,7 +21,13 @@ class ImageUpvote(commands.Cog):
         self._uploaded_messages: set[int] = set()
 
     async def handle_upload(self, message: discord.Message) -> None:
-        logger.info(f"Uploading message {message.id} attachments to S3 (placeholder).")
+        for attachment in message.attachments:
+            if attachment.content_type and attachment.content_type.startswith("image"):
+                data = await attachment.read()
+                file_path = UPLOAD_DIR / f"{message.id}_{attachment.filename}"
+                with open(file_path, "wb") as f:
+                    f.write(data)
+        logger.info(f"Saved message {message.id} attachments to {UPLOAD_DIR}.")
         self._uploaded_messages.add(message.id)
 
     @commands.Cog.listener()
@@ -66,7 +76,7 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         return
     await interaction.response.defer(ephemeral=True)
     await cog.handle_upload(message)
-    await interaction.followup.send("Image uploaded to S3.", ephemeral=True)
+    await interaction.followup.send("Image saved to CDN.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
