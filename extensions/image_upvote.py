@@ -21,18 +21,24 @@ class ImageUpvote(commands.Cog):
         self._uploaded_messages: set[int] = set()
 
     async def handle_upload(self, message: discord.Message) -> None:
-        for attachment in message.attachments:
-            if attachment.content_type and attachment.content_type.startswith("image"):
-                data = await attachment.read()
-                extension = Path(attachment.filename).suffix
-                file_path = UPLOAD_DIR / f"{message.author.id}-{message.id}{extension}"
-                with open(file_path, "wb") as f:
-                    f.write(data)
-                logger.info(
-                    f"Saved message {message.id} attachment as {file_path.name}."
-                )
-                self._uploaded_messages.add(message.id)
-                break
+        images = [
+            att
+            for att in message.attachments
+            if att.content_type and att.content_type.startswith("image")
+        ]
+        for idx, attachment in enumerate(images, start=1):
+            data = await attachment.read()
+            extension = Path(attachment.filename).suffix
+            file_path = UPLOAD_DIR / (
+                f"{message.author.id}-{message.id}_{idx:02d}{extension}"
+            )
+            with open(file_path, "wb") as f:
+                f.write(data)
+            logger.info(
+                f"Saved message {message.id} attachment as {file_path.name}."
+            )
+        self._uploaded_messages.add(message.id)
+        await message.add_reaction("✅")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -49,15 +55,27 @@ class ImageUpvote(commands.Cog):
             message = await channel.fetch_message(payload.message_id)
         except discord.NotFound:
             return
+        if any(str(reaction.emoji) == "✅" for reaction in message.reactions):
+            return
         if message.id in self._uploaded_messages:
             return
-        if not any(att.content_type and att.content_type.startswith("image") for att in message.attachments):
+        if not any(
+            att.content_type and att.content_type.startswith("image")
+            for att in message.attachments
+        ):
             return
+        arrow_count = 0
         for reaction in message.reactions:
-            emoji_name = reaction.emoji.name if hasattr(reaction.emoji, "name") else str(reaction.emoji)
-            if emoji_name == UPVOTE_EMOJI_NAME and reaction.count >= UPVOTE_THRESHOLD:
-                await self.handle_upload(message)
+            emoji_name = (
+                reaction.emoji.name
+                if hasattr(reaction.emoji, "name")
+                else str(reaction.emoji)
+            )
+            if emoji_name == UPVOTE_EMOJI_NAME:
+                arrow_count = reaction.count
                 break
+        if arrow_count >= UPVOTE_THRESHOLD:
+            await self.handle_upload(message)
 
 
 @shadow_bot.tree.context_menu(name="Force Upload")
