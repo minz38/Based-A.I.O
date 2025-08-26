@@ -8,7 +8,7 @@ from pathlib import Path
 
 CHANNEL_ID = int(os.getenv("IMAGE_UPVOTE_CHANNEL_ID", "1003337674008055919"))
 UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
-UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "5"))
+UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "4"))
 UPLOAD_DIR = Path("cdn/ImageUploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -21,10 +21,10 @@ class ImageUpvote(commands.Cog):
         self._uploaded_messages: set[int] = set()
 
     async def handle_upload(
-        self,
-        message: discord.Message,
-        source: str,
-        interaction: discord.Interaction | None = None,
+            self,
+            message: discord.Message,
+            source: str,
+            interaction: discord.Interaction | None = None,
     ) -> None:
         images = [
             att
@@ -83,8 +83,8 @@ class ImageUpvote(commands.Cog):
         if message.id in self._uploaded_messages:
             return
         if not any(
-            att.content_type and att.content_type.startswith("image")
-            for att in message.attachments
+                att.content_type and att.content_type.startswith("image")
+                for att in message.attachments
         ):
             return
         arrow_count = 0
@@ -110,7 +110,8 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
         return
     if message.channel.id != CHANNEL_ID:
-        await interaction.response.send_message("This command can only be used in the configured channel.", ephemeral=True)
+        await interaction.response.send_message("This command can only be used in the configured channel.",
+                                                ephemeral=True)
         return
     if not any(att.content_type and att.content_type.startswith("image") for att in message.attachments):
         await interaction.response.send_message("The selected message does not contain an image.", ephemeral=True)
