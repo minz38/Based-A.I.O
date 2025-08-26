@@ -1,5 +1,6 @@
 import discord
-from bot import bot as shadow_bot
+from discord import app_commands
+from discord.ext import commands
 from logger import LoggerManager
 from dependencies.audit_logger import log_interaction
 
@@ -29,13 +30,13 @@ class ReasonForModerationModal(discord.ui.Modal):
             logger.error("Bot lacks permissions to delete messages.")
 
 
-@shadow_bot.tree.context_menu(name="Delete Message")
+@app_commands.context_menu(name="Delete Message")
 async def delete_message(interaction: discord.Interaction, message: discord.Message):
     """ Prompts for a reason before deleting the given message. """
     await interaction.response.send_modal(ReasonForModerationModal(message=message, shadow_interaction=interaction))
 
 
-@shadow_bot.tree.context_menu(name="Pin Message")
+@app_commands.context_menu(name="Pin Message")
 async def pin_message(interaction: discord.Interaction, message: discord.Message):
     """Pins the given message to the top of the channel's message list."""
     if not message.pinned:
@@ -57,7 +58,7 @@ async def pin_message(interaction: discord.Interaction, message: discord.Message
         await interaction.response.send_message("Message is already pinned.", ephemeral=True)
 
 
-@shadow_bot.tree.context_menu(name="Unpin Message")
+@app_commands.context_menu(name="Unpin Message")
 async def unpin_message(interaction: discord.Interaction, message: discord.Message):
     """Unpins the given message from the channel's message list."""
     if message.pinned:
@@ -77,3 +78,10 @@ async def unpin_message(interaction: discord.Interaction, message: discord.Messa
 
     else:
         await interaction.response.send_message("Message is not pinned.", ephemeral=True)
+
+
+async def setup(bot: commands.Bot) -> None:
+    """Register moderation context menus with the provided bot."""
+    bot.tree.add_command(delete_message)
+    bot.tree.add_command(pin_message)
+    bot.tree.add_command(unpin_message)

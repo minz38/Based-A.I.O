@@ -14,13 +14,22 @@ TEMP_PATH = "temp/twitter_attachments/"
 class TwitterPosting(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.x = Tweet()
+        try:
+            self.x = Tweet()
+        except Exception as e:
+            logger.error(f"Failed to initialize Twitter client: {e}")
+            self.x = None
 
     @app_commands.command(name="tweet_create", description="create Twitter posts")
     @app_commands.allowed_installs(guilds=True, users=False)
     @app_commands.guild_only()
     async def tweet_create(self, interaction: discord.Interaction, text: str, attachments: str | None = None) -> None:
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+
+        if self.x is None:
+            await interaction.response.send_message("Twitter integration is not configured.", ephemeral=True)
+            return
+
         await interaction.response.defer(thinking=True, ephemeral=False)  # noqa
         f = attachments.split() if attachments else []
         twitter_attachments = []
@@ -45,6 +54,11 @@ class TwitterPosting(commands.Cog):
     @app_commands.guild_only()
     async def tweet_delete(self, interaction: discord.Interaction, tweet: str) -> None:
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
+
+        if self.x is None:
+            await interaction.response.send_message("Twitter integration is not configured.", ephemeral=True)
+            return
+
         await interaction.response.defer(thinking=True, ephemeral=False)  # noqa
         try:
             tweet_id: int = int(re.findall(r'\d+', tweet)[0])

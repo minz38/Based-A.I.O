@@ -20,6 +20,8 @@ This repository powers a Discord bot built around modular extensions and utiliti
 - Each module should obtain a logger via `LoggerManager` and write to `logs/<name>.log`.
 - Update `requirements.txt` when adding external libraries.
 - Avoid altering files in `inactive_extensions/` unless bringing a feature back.
+- When reading IDs or tokens from environment variables, cast to `int` only if the value exists to avoid `TypeError` on startup.
+- Register context menu commands via `async def setup` instead of importing the global bot instance.
 
 ## Programmatic Checks
 

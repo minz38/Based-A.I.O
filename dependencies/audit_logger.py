@@ -2,13 +2,15 @@ import os
 import discord
 from typing import Literal
 from logger import LoggerManager
-from bot import bot as shadow_bot
 
 logger = LoggerManager(name="Audit / Mod", level="INFO", log_file="logs/audit.log").get_logger()
 
-# load environment variables
-AUDIT_LOG_CHANNEL_ID: int | None = int(os.getenv("AUDIT_LOG_CHANNEL_ID"))
-MOD_LOG_CHANNEL_ID: int | None = int(os.getenv("MOD_LOG_CHANNEL_ID"))
+# load environment variables safely
+_audit_env = os.getenv("AUDIT_LOG_CHANNEL_ID")
+_mod_env = os.getenv("MOD_LOG_CHANNEL_ID")
+
+AUDIT_LOG_CHANNEL_ID: int | None = int(_audit_env) if _audit_env else None
+MOD_LOG_CHANNEL_ID: int | None = int(_mod_env) if _mod_env else None
 
 
 async def verify_functionality(interaction: discord.Interaction) -> bool:

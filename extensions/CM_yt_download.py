@@ -2,7 +2,6 @@ import re
 import discord
 from discord import app_commands
 from discord.ext import commands
-from bot import bot as shadow_bot
 from logger import LoggerManager
 from dependencies.youtube_handler import download_music, delete_temp_files
 
@@ -13,7 +12,7 @@ logger = LoggerManager(name="YT-Downloader", level="INFO", log_file="logs/bot.lo
 # Dependencies folder: ffmpeg.exe, ffprobe.exe, youtube_handler.py
 @app_commands.allowed_installs(guilds=True, users=True)
 @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
-@shadow_bot.tree.context_menu(name="Youtube Music Download")
+@app_commands.context_menu(name="Youtube Music Download")
 async def music_download(interaction: discord.Interaction, message: discord.Message):
     logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
     message_content: str = str(message.clean_content)
@@ -42,3 +41,8 @@ async def music_download(interaction: discord.Interaction, message: discord.Mess
 
     else:
         await interaction.response.send_message("No YouTube video link found.", ephemeral=True)  # noqa
+
+
+async def setup(bot: commands.Bot) -> None:
+    """Register the context menu with the provided bot."""
+    bot.tree.add_command(music_download)
