@@ -53,14 +53,22 @@ class ImageUpvote(commands.Cog):
                     if source == "force"
                     else "Image uploaded via upvotes"
                 )
+                if source == "force" and interaction:
+                    event_status = (
+                        f"{file_path.name} - {size_mb:.2f} MB\n"
+                        f"Force by {interaction.user.mention} in {message.channel.mention}\n"
+                        f"{message.jump_url}"
+                    )
+                else:
+                    event_status = (
+                        f"{file_path.name} - {size_mb:.2f} MB\n"
+                        f"{message.jump_url}"
+                    )
                 await admin_log_cog.log_event(
                     message.guild.id,
                     priority="info",
                     event_name=event,
-                    event_status=(
-                        f"{file_path.name} - {size_mb:.2f} MB\n"
-                        f"[Message Link]({message.jump_url})"
-                    ),
+                    event_status=event_status,
                 )
         self._uploaded_messages.add(message.id)
         await message.add_reaction("✅")
@@ -105,7 +113,9 @@ class ImageUpvote(commands.Cog):
 @app_commands.allowed_installs(guilds=True, users=False)
 @app_commands.guild_only()
 async def force_upload(interaction: discord.Interaction, message: discord.Message) -> None:
-    logger.info(f"Force upload triggered by {interaction.user} for message {message.id}")
+    logger.info(
+        f"Force upload triggered by {interaction.user} in {message.channel} ({message.jump_url})"
+    )
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
         return

@@ -12,6 +12,7 @@
 - Uploaded images are saved to `cdn/ImageUploads/` using the naming pattern `<user_id>-<message_id>_<nn><extension>` where `nn` increments for multiple attachments. The feature reads environment variables `IMAGE_UPVOTE_EMOJI_NAME` and `IMAGE_UPVOTE_THRESHOLD`.
 - After a successful upload the bot reacts with `:white_check_mark:` to mark processed messages and counts emoji reactions each time to ensure accuracy after restarts.
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
+- The link uses the message's `jump_url` so logs open directly to the original message.
 
 This repository powers a Discord bot built around modular extensions and utilities. This file summarizes the layout and guidelines for AI contributors.
 
