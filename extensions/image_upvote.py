@@ -48,11 +48,11 @@ class ImageUpvote(commands.Cog):
             att
             for att in message.attachments
             if att.content_type
-            and (
-                att.content_type.startswith("image")
-                or att.content_type.startswith("video")
-                or att.content_type.startswith("audio")
-            )
+               and (
+                       att.content_type.startswith("image")
+                       or att.content_type.startswith("video")
+                       or att.content_type.startswith("audio")
+               )
         ]
         admin_log_cog = (
             interaction.client.get_cog("AdminLog")
@@ -80,7 +80,7 @@ class ImageUpvote(commands.Cog):
                 elif attachment.content_type.startswith("video"):
                     file_path = UPLOAD_DIR / f"{file_stem}.mp4"
                     with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=extension
+                            delete=False, suffix=extension
                     ) as temp_file:
                         temp_file.write(data)
                         temp_path = Path(temp_file.name)
@@ -100,7 +100,7 @@ class ImageUpvote(commands.Cog):
                 elif attachment.content_type.startswith("audio"):
                     file_path = UPLOAD_DIR / f"{file_stem}.mp3"
                     with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=extension
+                            delete=False, suffix=extension
                     ) as temp_file:
                         temp_file.write(data)
                         temp_path = Path(temp_file.name)
@@ -191,9 +191,9 @@ class ImageUpvote(commands.Cog):
         if not any(
                 att.content_type
                 and (
-                    att.content_type.startswith("image")
-                    or att.content_type.startswith("video")
-                    or att.content_type.startswith("audio")
+                        att.content_type.startswith("image")
+                        or att.content_type.startswith("video")
+                        or att.content_type.startswith("audio")
                 )
                 for att in message.attachments
         ):
@@ -223,13 +223,13 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
         return
     if not any(
-        att.content_type
-        and (
-            att.content_type.startswith("image")
-            or att.content_type.startswith("video")
-            or att.content_type.startswith("audio")
-        )
-        for att in message.attachments
+            att.content_type
+            and (
+                    att.content_type.startswith("image")
+                    or att.content_type.startswith("video")
+                    or att.content_type.startswith("audio")
+            )
+            for att in message.attachments
     ):
         await interaction.response.send_message(
             "The selected message does not contain an image, video, or audio.",
