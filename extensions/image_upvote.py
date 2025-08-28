@@ -9,12 +9,25 @@ import asyncio
 import tempfile
 from pathlib import Path
 from PIL import Image
+import json
 
 UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
 UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "4"))
-UPLOAD_DIR = Path("cdn/ImageUploads")
+UPLOAD_DIR = Path("cdn/Uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 CDN_BASE_URL = "https://cdn.killua.de"
+LINKS_FILE = UPLOAD_DIR / "links.json"
+if not LINKS_FILE.exists():
+    LINKS_FILE.write_text("[]")
+
+
+def rebuild_links_index() -> None:
+    files = [
+        f"{CDN_BASE_URL}/{UPLOAD_DIR.name}/{p.name}"
+        for p in sorted(UPLOAD_DIR.iterdir())
+        if p.is_file() and p.name != LINKS_FILE.name
+    ]
+    LINKS_FILE.write_text(json.dumps(files, indent=2))
 
 logger = LoggerManager(name="ImageUpvote", level="INFO", log_file="logs/ImageUpvote.log").get_logger()
 
@@ -37,6 +50,7 @@ class ImageUpvote(commands.Cog):
             and (
                 att.content_type.startswith("image")
                 or att.content_type.startswith("video")
+                or att.content_type.startswith("audio")
             )
         ]
         admin_log_cog = (
@@ -83,10 +97,30 @@ class ImageUpvote(commands.Cog):
                     temp_path.unlink(missing_ok=True)
                     if process.returncode != 0:
                         raise RuntimeError(stderr.decode())
+                elif attachment.content_type.startswith("audio"):
+                    file_path = UPLOAD_DIR / f"{file_stem}.mp3"
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=extension
+                    ) as temp_file:
+                        temp_file.write(data)
+                        temp_path = Path(temp_file.name)
+                    process = await asyncio.create_subprocess_exec(
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(temp_path),
+                        str(file_path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    _, stderr = await process.communicate()
+                    temp_path.unlink(missing_ok=True)
+                    if process.returncode != 0:
+                        raise RuntimeError(stderr.decode())
                 else:
                     raise ValueError("Unsupported content type")
                 size_mb = file_path.stat().st_size / (1024 * 1024)
-                url = f"{CDN_BASE_URL}/{UPLOAD_DIR.name}/{file_path.name}"
+                url = f"{CDN_BASE_URL}/{file_path.parent.name}/{file_path.name}"
                 logger.info(
                     f"Saved message {message.id} attachment as {file_path.name}."
                 )
@@ -133,6 +167,8 @@ class ImageUpvote(commands.Cog):
                         ),
                     )
                 continue
+        if any_success:
+            rebuild_links_index()
         self._uploaded_messages.add(message.id)
         if any_failure:
             await message.add_reaction("❎")
@@ -161,6 +197,7 @@ class ImageUpvote(commands.Cog):
                 and (
                     att.content_type.startswith("image")
                     or att.content_type.startswith("video")
+                    or att.content_type.startswith("audio")
                 )
                 for att in message.attachments
         ):
@@ -194,11 +231,12 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         and (
             att.content_type.startswith("image")
             or att.content_type.startswith("video")
+            or att.content_type.startswith("audio")
         )
         for att in message.attachments
     ):
         await interaction.response.send_message(
-            "The selected message does not contain an image or video.",
+            "The selected message does not contain an image, video, or audio.",
             ephemeral=True,
         )
         return
