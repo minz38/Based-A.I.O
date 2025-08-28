@@ -170,6 +170,15 @@ class ImageUpvote(commands.Cog):
             rebuild_links_index()
             self._uploaded_messages.add(message.id)
             await message.add_reaction("✅")
+        else:
+            if not any(
+                    str(reaction.emoji) == "❎" and reaction.me
+                    for reaction in message.reactions
+            ):
+                try:
+                    await message.add_reaction("❎")
+                except discord.HTTPException:
+                    pass
         return any_success
 
     @commands.Cog.listener()
