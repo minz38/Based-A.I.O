@@ -8,12 +8,12 @@
 - Update this file with any new project knowledge.
 
 ## Notes
-- `image_upvote` extension allows images posted anywhere in a guild to be uploaded once they receive five `:arrow_upvote:` reactions. Admins can force the upload via a message context menu available in all channels.
-- Uploaded images are saved to `cdn/ImageUploads/` using the naming pattern `<user_id>-<message_id>_<nn><extension>` where `nn` increments for multiple attachments. The feature reads environment variables `IMAGE_UPVOTE_EMOJI_NAME` and `IMAGE_UPVOTE_THRESHOLD`.
+- `image_upvote` extension allows images, videos, and audio clips posted anywhere in a guild to be uploaded once they receive five `:arrow_upvote:` reactions. Admins can force the upload via a message context menu available in all channels.
+- Uploaded images, videos, and audio are saved to `cdn/Uploads/`. The folder also contains a `links.json` file listing CDN URLs of all saved uploads, regenerated after each new upload. Files use the naming pattern `<user_id>-<message_id>_<nn><extension>` where `nn` increments for multiple attachments. The feature reads environment variables `IMAGE_UPVOTE_EMOJI_NAME` and `IMAGE_UPVOTE_THRESHOLD`.
 - After a successful upload the bot reacts with `:white_check_mark:` to mark processed messages and counts emoji reactions each time to ensure accuracy after restarts.
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
 - The link uses the message's `jump_url` so logs open directly to the original message.
-- Uploaded images are converted to WEBP unless they are GIF or already WEBP; those formats are saved without conversion. Videos are converted to MP4. Unsupported formats are skipped, the bot reacts with `:negative_squared_cross_mark:`, and the failure reason is logged. Each successful upload logs the full CDN URL (`https://cdn.killua.de/ImageUploads/<filename>`).
+- Uploaded images are converted to WEBP unless they are GIF or already WEBP; those formats are saved without conversion. Videos are converted to MP4 and audio to MP3. Unsupported formats are skipped, the bot reacts with `:negative_squared_cross_mark:`, and the failure reason is logged. Each successful upload logs the full CDN URL (`https://cdn.killua.de/Uploads/<filename>`).
 
 This repository powers a Discord bot built around modular extensions and utilities. This file summarizes the layout and guidelines for AI contributors.
 
