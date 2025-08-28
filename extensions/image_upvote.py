@@ -8,7 +8,7 @@ import io
 import asyncio
 import tempfile
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageSequence
 
 UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
 UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "4"))
@@ -29,7 +29,7 @@ class ImageUpvote(commands.Cog):
             message: discord.Message,
             source: str,
             interaction: discord.Interaction | None = None,
-    ) -> None:
+    ) -> bool:
         attachments = [
             att
             for att in message.attachments
@@ -55,7 +55,18 @@ class ImageUpvote(commands.Cog):
                         f"{message.author.id}-{message.id}_{idx:02d}.webp"
                     )
                     with Image.open(io.BytesIO(data)) as img:
-                        img.save(file_path, "WEBP")
+                        if getattr(img, "is_animated", False):
+                            frames = [frame.copy() for frame in ImageSequence.Iterator(img)]
+                            frames[0].save(
+                                file_path,
+                                format="WEBP",
+                                save_all=True,
+                                append_images=frames[1:],
+                                duration=img.info.get("duration"),
+                                loop=img.info.get("loop", 0),
+                            )
+                        else:
+                            img.save(file_path, "WEBP")
                 elif attachment.content_type.startswith("video"):
                     file_path = UPLOAD_DIR / (
                         f"{message.author.id}-{message.id}_{idx:02d}.mp4"
@@ -133,6 +144,7 @@ class ImageUpvote(commands.Cog):
             await message.add_reaction("❎")
         else:
             await message.add_reaction("✅")
+        return any_success
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -202,8 +214,9 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
-    await cog.handle_upload(message, source="force", interaction=interaction)
-    await interaction.followup.send("Media saved to CDN.", ephemeral=True)
+    success = await cog.handle_upload(message, source="force", interaction=interaction)
+    followup = "Media saved to CDN." if success else "Failed to save media to CDN."
+    await interaction.followup.send(followup, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

@@ -14,6 +14,7 @@
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
 - The link uses the message's `jump_url` so logs open directly to the original message.
 - Uploaded images are converted to WEBP and videos to MP4. Unsupported formats are skipped, the bot reacts with `:negative_squared_cross_mark:`, and the failure reason is logged. Each successful upload logs the full CDN URL (`https://cdn.killua.de/ImageUploads/<filename>`).
+- Animated images retain their animation when converted to WEBP, and the force upload command reports a failure when no attachment could be saved.
 
 This repository powers a Discord bot built around modular extensions and utilities. This file summarizes the layout and guidelines for AI contributors.
 
