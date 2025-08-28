@@ -4,12 +4,31 @@ from discord import app_commands
 from bot import bot as shadow_bot
 from logger import LoggerManager
 import os
+import io
+import asyncio
+import tempfile
 from pathlib import Path
+from PIL import Image
+import json
 
 UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
 UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "4"))
-UPLOAD_DIR = Path("cdn/ImageUploads")
+UPLOAD_DIR = Path("cdn/Uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+CDN_BASE_URL = "https://cdn.killua.de"
+LINKS_FILE = UPLOAD_DIR / "links.json"
+if not LINKS_FILE.exists():
+    LINKS_FILE.write_text("[]")
+
+
+def rebuild_links_index() -> None:
+    files = [
+        f"{CDN_BASE_URL}/{UPLOAD_DIR.name}/{p.name}"
+        for p in sorted(UPLOAD_DIR.iterdir())
+        if p.is_file() and p.name != LINKS_FILE.name
+    ]
+    LINKS_FILE.write_text(json.dumps(files, indent=2))
+
 
 logger = LoggerManager(name="ImageUpvote", level="INFO", log_file="logs/ImageUpvote.log").get_logger()
 
@@ -24,54 +43,143 @@ class ImageUpvote(commands.Cog):
             message: discord.Message,
             source: str,
             interaction: discord.Interaction | None = None,
-    ) -> None:
+    ) -> bool:
         images = [
             att
             for att in message.attachments
-            if att.content_type and att.content_type.startswith("image")
+            if att.content_type
+               and (
+                       att.content_type.startswith("image")
+                       or att.content_type.startswith("video")
+                       or att.content_type.startswith("audio")
+               )
         ]
         admin_log_cog = (
             interaction.client.get_cog("AdminLog")
             if interaction
             else self.bot.get_cog("AdminLog")
         )
+        any_success = False
         for idx, attachment in enumerate(images, start=1):
             data = await attachment.read()
-            size_mb = len(data) / (1024 * 1024)
             extension = Path(attachment.filename).suffix
-            file_path = UPLOAD_DIR / (
-                f"{message.author.id}-{message.id}_{idx:02d}{extension}"
-            )
-            with open(file_path, "wb") as f:
-                f.write(data)
-            logger.info(
-                f"Saved message {message.id} attachment as {file_path.name}."
-            )
-            if admin_log_cog:
-                event = (
-                    "Image force uploaded"
-                    if source == "force"
-                    else "Image uploaded via upvotes"
-                )
-                if source == "force" and interaction:
-                    event_status = (
-                        f"{file_path.name} - {size_mb:.2f} MB\n"
-                        f"Force by {interaction.user.mention} in {message.channel.mention}\n"
-                        f"{message.jump_url}"
+            file_stem = f"{message.author.id}-{message.id}_{idx:02d}"
+            try:
+                if attachment.content_type.startswith("image"):
+                    with Image.open(io.BytesIO(data)) as img:
+                        img_format = img.format
+                        if img_format == "GIF":
+                            file_path = UPLOAD_DIR / f"{file_stem}.gif"
+                            file_path.write_bytes(data)
+                        elif img_format == "WEBP":
+                            file_path = UPLOAD_DIR / f"{file_stem}.webp"
+                            file_path.write_bytes(data)
+                        else:
+                            file_path = UPLOAD_DIR / f"{file_stem}.webp"
+                            img.save(file_path, "WEBP")
+                elif attachment.content_type.startswith("video"):
+                    file_path = UPLOAD_DIR / f"{file_stem}.mp4"
+                    with tempfile.NamedTemporaryFile(
+                            delete=False, suffix=extension
+                    ) as temp_file:
+                        temp_file.write(data)
+                        temp_path = Path(temp_file.name)
+                    process = await asyncio.create_subprocess_exec(
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(temp_path),
+                        str(file_path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
                     )
+                    _, stderr = await process.communicate()
+                    temp_path.unlink(missing_ok=True)
+                    if process.returncode != 0:
+                        raise RuntimeError(stderr.decode())
+                elif attachment.content_type.startswith("audio"):
+                    file_path = UPLOAD_DIR / f"{file_stem}.mp3"
+                    with tempfile.NamedTemporaryFile(
+                            delete=False, suffix=extension
+                    ) as temp_file:
+                        temp_file.write(data)
+                        temp_path = Path(temp_file.name)
+                    process = await asyncio.create_subprocess_exec(
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(temp_path),
+                        str(file_path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    _, stderr = await process.communicate()
+                    temp_path.unlink(missing_ok=True)
+                    if process.returncode != 0:
+                        raise RuntimeError(stderr.decode())
                 else:
-                    event_status = (
-                        f"{file_path.name} - {size_mb:.2f} MB\n"
-                        f"{message.jump_url}"
-                    )
-                await admin_log_cog.log_event(
-                    message.guild.id,
-                    priority="info",
-                    event_name=event,
-                    event_status=event_status,
+                    raise ValueError("Unsupported content type")
+                size_mb = file_path.stat().st_size / (1024 * 1024)
+                url = f"{CDN_BASE_URL}/{file_path.parent.name}/{file_path.name}"
+                logger.info(
+                    f"Saved message {message.id} attachment as {file_path.name}."
                 )
-        self._uploaded_messages.add(message.id)
-        await message.add_reaction("✅")
+                if admin_log_cog:
+                    event = (
+                        "Media force uploaded"
+                        if source == "force"
+                        else "Media uploaded via upvotes"
+                    )
+                    if source == "force" and interaction:
+                        event_status = (
+                            f"{file_path.name} - {size_mb:.2f} MB\n"
+                            f"{url}\n"
+                            f"Force by {interaction.user.mention} in {message.channel.mention}\n"
+                            f"{message.jump_url}"
+                        )
+                    else:
+                        event_status = (
+                            f"{file_path.name} - {size_mb:.2f} MB\n"
+                            f"{url}\n"
+                            f"{message.jump_url}"
+                        )
+                    await admin_log_cog.log_event(
+                        message.guild.id,
+                        priority="info",
+                        event_name=event,
+                        event_status=event_status,
+                    )
+                any_success = True
+            except Exception as exc:
+                logger.error(
+                    f"Failed to save attachment {attachment.filename} from message {message.id}: {exc}"
+                )
+                if admin_log_cog:
+                    await admin_log_cog.log_event(
+                        message.guild.id,
+                        priority="error",
+                        event_name="Media upload failed",
+                        event_status=(
+                            f"{attachment.filename}\n"
+                            f"{message.jump_url}\n"
+                            f"Reason: {exc}"
+                        ),
+                    )
+                continue
+        if any_success:
+            rebuild_links_index()
+            self._uploaded_messages.add(message.id)
+            await message.add_reaction("✅")
+        else:
+            if not any(
+                    str(reaction.emoji) == "❎" and reaction.me
+                    for reaction in message.reactions
+            ):
+                try:
+                    await message.add_reaction("❎")
+                except discord.HTTPException:
+                    pass
+        return any_success
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -91,7 +199,12 @@ class ImageUpvote(commands.Cog):
         if message.id in self._uploaded_messages:
             return
         if not any(
-                att.content_type and att.content_type.startswith("image")
+                att.content_type
+                and (
+                        att.content_type.startswith("image")
+                        or att.content_type.startswith("video")
+                        or att.content_type.startswith("audio")
+                )
                 for att in message.attachments
         ):
             return
@@ -119,16 +232,30 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
         return
-    if not any(att.content_type and att.content_type.startswith("image") for att in message.attachments):
-        await interaction.response.send_message("The selected message does not contain an image.", ephemeral=True)
+    if not any(
+            att.content_type
+            and (
+                    att.content_type.startswith("image")
+                    or att.content_type.startswith("video")
+                    or att.content_type.startswith("audio")
+            )
+            for att in message.attachments
+    ):
+        await interaction.response.send_message(
+            "The selected message does not contain an image, video, or audio.",
+            ephemeral=True,
+        )
         return
     cog = interaction.client.get_cog("ImageUpvote")
     if not cog:
         await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
-    await cog.handle_upload(message, source="force", interaction=interaction)
-    await interaction.followup.send("Image saved to CDN.", ephemeral=True)
+    success = await cog.handle_upload(message, source="force", interaction=interaction)
+    if success:
+        await interaction.followup.send("Image saved to CDN.", ephemeral=True)
+    else:
+        await interaction.followup.send("Failed to save any attachments.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
