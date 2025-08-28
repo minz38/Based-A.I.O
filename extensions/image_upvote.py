@@ -170,6 +170,8 @@ class ImageUpvote(commands.Cog):
             rebuild_links_index()
             self._uploaded_messages.add(message.id)
             await message.add_reaction("✅")
+        else:
+            await message.add_reaction("❎")
         return any_success
 
     @commands.Cog.listener()
