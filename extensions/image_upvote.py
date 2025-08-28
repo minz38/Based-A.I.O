@@ -43,7 +43,7 @@ class ImageUpvote(commands.Cog):
             message: discord.Message,
             source: str,
             interaction: discord.Interaction | None = None,
-    ) -> None:
+    ) -> bool:
         images = [
             att
             for att in message.attachments
@@ -168,8 +168,9 @@ class ImageUpvote(commands.Cog):
                 continue
         if any_success:
             rebuild_links_index()
-        self._uploaded_messages.add(message.id)
-        await message.add_reaction("✅")
+            self._uploaded_messages.add(message.id)
+            await message.add_reaction("✅")
+        return any_success
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -241,8 +242,11 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
         return
     await interaction.response.defer(ephemeral=True)
-    await cog.handle_upload(message, source="force", interaction=interaction)
-    await interaction.followup.send("Image saved to CDN.", ephemeral=True)
+    success = await cog.handle_upload(message, source="force", interaction=interaction)
+    if success:
+        await interaction.followup.send("Image saved to CDN.", ephemeral=True)
+    else:
+        await interaction.followup.send("Failed to save any attachments.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
