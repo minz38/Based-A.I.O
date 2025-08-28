@@ -4,9 +4,6 @@ from discord import app_commands
 from bot import bot as shadow_bot
 from logger import LoggerManager
 import os
-import io
-import asyncio
-import tempfile
 from pathlib import Path
 from PIL import Image
 import json
@@ -29,6 +26,7 @@ def rebuild_links_index() -> None:
     ]
     LINKS_FILE.write_text(json.dumps(files, indent=2))
 
+
 logger = LoggerManager(name="ImageUpvote", level="INFO", log_file="logs/ImageUpvote.log").get_logger()
 
 
@@ -43,7 +41,7 @@ class ImageUpvote(commands.Cog):
             source: str,
             interaction: discord.Interaction | None = None,
     ) -> None:
-        attachments = [
+        images = [
             att
             for att in message.attachments
             if att.content_type
@@ -58,10 +56,9 @@ class ImageUpvote(commands.Cog):
             if interaction
             else self.bot.get_cog("AdminLog")
         )
-        any_failure = False
-        any_success = False
-        for idx, attachment in enumerate(attachments, start=1):
+        for idx, attachment in enumerate(images, start=1):
             data = await attachment.read()
+            size_mb = len(data) / (1024 * 1024)
             extension = Path(attachment.filename).suffix
             file_stem = f"{message.author.id}-{message.id}_{idx:02d}"
             try:
@@ -124,37 +121,24 @@ class ImageUpvote(commands.Cog):
                 logger.info(
                     f"Saved message {message.id} attachment as {file_path.name}."
                 )
-                if admin_log_cog:
-                    event = (
-                        "Media force uploaded"
-                        if source == "force"
-                        else "Media uploaded via upvotes"
+                if source == "force" and interaction:
+                    event_status = (
+                        f"{file_path.name} - {size_mb:.2f} MB\n"
+                        f"Force by {interaction.user.mention} in {message.channel.mention}\n"
+                        f"{message.jump_url}"
                     )
-                    if source == "force" and interaction:
-                        event_status = (
-                            f"{file_path.name} - {size_mb:.2f} MB\n"
-                            f"{url}\n"
-                            f"Force by {interaction.user.mention} in {message.channel.mention}\n"
-                            f"{message.jump_url}"
-                        )
-                    else:
-                        event_status = (
-                            f"{file_path.name} - {size_mb:.2f} MB\n"
-                            f"{url}\n"
-                            f"{message.jump_url}"
-                        )
-                    await admin_log_cog.log_event(
-                        message.guild.id,
-                        priority="info",
-                        event_name=event,
-                        event_status=event_status,
+                else:
+                    event_status = (
+                        f"{file_path.name} - {size_mb:.2f} MB\n"
+                        f"{message.jump_url}"
                     )
-                any_success = True
-            except Exception as exc:
-                any_failure = True
-                logger.error(
-                    f"Failed to save attachment {attachment.filename} from message {message.id}: {exc}"
+                await admin_log_cog.log_event(
+                    message.guild.id,
+                    priority="info",
+                    event_name=event,
+                    event_status=event_status,
                 )
+
                 if admin_log_cog:
                     await admin_log_cog.log_event(
                         message.guild.id,
@@ -170,10 +154,7 @@ class ImageUpvote(commands.Cog):
         if any_success:
             rebuild_links_index()
         self._uploaded_messages.add(message.id)
-        if any_failure:
-            await message.add_reaction("❎")
-        else:
-            await message.add_reaction("✅")
+        await message.add_reaction("✅")
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
@@ -188,7 +169,7 @@ class ImageUpvote(commands.Cog):
             message = await channel.fetch_message(payload.message_id)
         except discord.NotFound:
             return
-        if any(str(reaction.emoji) in {"✅", "❎"} for reaction in message.reactions):
+        if any(str(reaction.emoji) == "✅" for reaction in message.reactions):
             return
         if message.id in self._uploaded_messages:
             return
@@ -246,7 +227,7 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         return
     await interaction.response.defer(ephemeral=True)
     await cog.handle_upload(message, source="force", interaction=interaction)
-    await interaction.followup.send("Media saved to CDN.", ephemeral=True)
+    await interaction.followup.send("Image saved to CDN.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

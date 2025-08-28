@@ -13,7 +13,6 @@
 - After a successful upload the bot reacts with `:white_check_mark:` to mark processed messages and counts emoji reactions each time to ensure accuracy after restarts.
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
 - The link uses the message's `jump_url` so logs open directly to the original message.
-- Uploaded images are converted to WEBP unless they are GIF or already WEBP; those formats are saved without conversion. Videos are converted to MP4 and audio to MP3. Unsupported formats are skipped, the bot reacts with `:negative_squared_cross_mark:`, and the failure reason is logged. Each successful upload logs the full CDN URL (`https://cdn.killua.de/Uploads/<filename>`).
 
 This repository powers a Discord bot built around modular extensions and utilities. This file summarizes the layout and guidelines for AI contributors.
 
