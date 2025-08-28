@@ -49,17 +49,22 @@ class ImageUpvote(commands.Cog):
         for idx, attachment in enumerate(attachments, start=1):
             data = await attachment.read()
             extension = Path(attachment.filename).suffix
+            file_stem = f"{message.author.id}-{message.id}_{idx:02d}"
             try:
                 if attachment.content_type.startswith("image"):
-                    file_path = UPLOAD_DIR / (
-                        f"{message.author.id}-{message.id}_{idx:02d}.webp"
-                    )
                     with Image.open(io.BytesIO(data)) as img:
-                        img.save(file_path, "WEBP")
+                        img_format = img.format
+                        if img_format == "GIF":
+                            file_path = UPLOAD_DIR / f"{file_stem}.gif"
+                            file_path.write_bytes(data)
+                        elif img_format == "WEBP":
+                            file_path = UPLOAD_DIR / f"{file_stem}.webp"
+                            file_path.write_bytes(data)
+                        else:
+                            file_path = UPLOAD_DIR / f"{file_stem}.webp"
+                            img.save(file_path, "WEBP")
                 elif attachment.content_type.startswith("video"):
-                    file_path = UPLOAD_DIR / (
-                        f"{message.author.id}-{message.id}_{idx:02d}.mp4"
-                    )
+                    file_path = UPLOAD_DIR / f"{file_stem}.mp4"
                     with tempfile.NamedTemporaryFile(
                         delete=False, suffix=extension
                     ) as temp_file:
