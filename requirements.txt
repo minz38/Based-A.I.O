@@ -16,3 +16,4 @@ google-api-python-client>=2.179.0
 uvicorn>=0.35.0
 fastapi>=0.116.1
 pydantic>=2.11.7
+Pillow>=10.0.0
