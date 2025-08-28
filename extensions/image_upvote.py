@@ -4,6 +4,9 @@ from discord import app_commands
 from bot import bot as shadow_bot
 from logger import LoggerManager
 import os
+import io
+import asyncio
+import tempfile
 from pathlib import Path
 from PIL import Image
 import json
@@ -45,20 +48,20 @@ class ImageUpvote(commands.Cog):
             att
             for att in message.attachments
             if att.content_type
-            and (
-                att.content_type.startswith("image")
-                or att.content_type.startswith("video")
-                or att.content_type.startswith("audio")
-            )
+               and (
+                       att.content_type.startswith("image")
+                       or att.content_type.startswith("video")
+                       or att.content_type.startswith("audio")
+               )
         ]
         admin_log_cog = (
             interaction.client.get_cog("AdminLog")
             if interaction
             else self.bot.get_cog("AdminLog")
         )
+        any_success = False
         for idx, attachment in enumerate(images, start=1):
             data = await attachment.read()
-            size_mb = len(data) / (1024 * 1024)
             extension = Path(attachment.filename).suffix
             file_stem = f"{message.author.id}-{message.id}_{idx:02d}"
             try:
@@ -77,7 +80,7 @@ class ImageUpvote(commands.Cog):
                 elif attachment.content_type.startswith("video"):
                     file_path = UPLOAD_DIR / f"{file_stem}.mp4"
                     with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=extension
+                            delete=False, suffix=extension
                     ) as temp_file:
                         temp_file.write(data)
                         temp_path = Path(temp_file.name)
@@ -97,7 +100,7 @@ class ImageUpvote(commands.Cog):
                 elif attachment.content_type.startswith("audio"):
                     file_path = UPLOAD_DIR / f"{file_stem}.mp3"
                     with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=extension
+                            delete=False, suffix=extension
                     ) as temp_file:
                         temp_file.write(data)
                         temp_path = Path(temp_file.name)
@@ -121,24 +124,36 @@ class ImageUpvote(commands.Cog):
                 logger.info(
                     f"Saved message {message.id} attachment as {file_path.name}."
                 )
-                if source == "force" and interaction:
-                    event_status = (
-                        f"{file_path.name} - {size_mb:.2f} MB\n"
-                        f"Force by {interaction.user.mention} in {message.channel.mention}\n"
-                        f"{message.jump_url}"
+                if admin_log_cog:
+                    event = (
+                        "Media force uploaded"
+                        if source == "force"
+                        else "Media uploaded via upvotes"
                     )
-                else:
-                    event_status = (
-                        f"{file_path.name} - {size_mb:.2f} MB\n"
-                        f"{message.jump_url}"
+                    if source == "force" and interaction:
+                        event_status = (
+                            f"{file_path.name} - {size_mb:.2f} MB\n"
+                            f"{url}\n"
+                            f"Force by {interaction.user.mention} in {message.channel.mention}\n"
+                            f"{message.jump_url}"
+                        )
+                    else:
+                        event_status = (
+                            f"{file_path.name} - {size_mb:.2f} MB\n"
+                            f"{url}\n"
+                            f"{message.jump_url}"
+                        )
+                    await admin_log_cog.log_event(
+                        message.guild.id,
+                        priority="info",
+                        event_name=event,
+                        event_status=event_status,
                     )
-                await admin_log_cog.log_event(
-                    message.guild.id,
-                    priority="info",
-                    event_name=event,
-                    event_status=event_status,
+                any_success = True
+            except Exception as exc:
+                logger.error(
+                    f"Failed to save attachment {attachment.filename} from message {message.id}: {exc}"
                 )
-
                 if admin_log_cog:
                     await admin_log_cog.log_event(
                         message.guild.id,
@@ -176,9 +191,9 @@ class ImageUpvote(commands.Cog):
         if not any(
                 att.content_type
                 and (
-                    att.content_type.startswith("image")
-                    or att.content_type.startswith("video")
-                    or att.content_type.startswith("audio")
+                        att.content_type.startswith("image")
+                        or att.content_type.startswith("video")
+                        or att.content_type.startswith("audio")
                 )
                 for att in message.attachments
         ):
@@ -208,13 +223,13 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
         return
     if not any(
-        att.content_type
-        and (
-            att.content_type.startswith("image")
-            or att.content_type.startswith("video")
-            or att.content_type.startswith("audio")
-        )
-        for att in message.attachments
+            att.content_type
+            and (
+                    att.content_type.startswith("image")
+                    or att.content_type.startswith("video")
+                    or att.content_type.startswith("audio")
+            )
+            for att in message.attachments
     ):
         await interaction.response.send_message(
             "The selected message does not contain an image, video, or audio.",
