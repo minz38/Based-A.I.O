@@ -1,15 +1,17 @@
-import os
-import json
 import datetime
-import discord
-from discord.ext import commands
-from discord import app_commands
-from logger import LoggerManager
+import json
+import os
 from typing import Any
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+from logger import LoggerManager
 
 # Initialize the logger
 logger = LoggerManager(name="Inactivity", level="INFO", log_file="logs/Inactivity.log").get_logger()
-# test commit
+
 
 class Inactivity(commands.Cog):
     def __init__(self, bot):
@@ -18,6 +20,7 @@ class Inactivity(commands.Cog):
         self.active_guilds: list[int] = []
         self.excluded_roles: dict[int, list[int]] = {}
         self.included_users: dict[int, list[int]] = {}  # Dictionary to store included users per guild
+        self.inactivity_cache: dict[tuple[int, int], tuple[datetime.datetime, list]] = {}
 
         # Ensure the activity folder exists
         if not os.path.exists('activity'):
@@ -29,6 +32,26 @@ class Inactivity(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: Any, before: Any, after: Any) -> None:
+        """
+        Handles updates to a member's voice state within a Discord guild.
+
+        This event listener is triggered whenever a user's voice state changes,
+        such as joining or leaving a voice channel or switching between channels.
+        The method performs the following tasks:
+        - Tracks voice channel join times for users who are not bots,
+          and who are not excluded based on roles or explicitly included rules.
+        - Records the duration of time spent in a voice channel upon leaving.
+        - Skips tracking for users with excluded roles unless they are individually included.
+        - Integrates with functions for storing voice activity data and updating connection counts.
+
+        :param member: The member whose voice state has changed.
+        :param before: The member's voice state immediately before the update.
+        :param after: The member's voice state immediately after the update.
+        :type member: Any
+        :type before: Any
+        :type after: Any
+        :return: None
+        """
         if member.bot:
             return
 
@@ -56,6 +79,23 @@ class Inactivity(commands.Cog):
                 await self.increment_voice_connections(guild_id=guild_id, member=member)  # Increment connection count
 
     async def store_voice_times(self, guild_id: int, member: Any, time: Any) -> None:
+        """
+        Store voice activity time for a guild member in a JSON file.
+
+        This function tracks and saves the voice activity time of a specific
+        user within a given guild. The data is stored in a JSON file specific
+        to the guild and includes the user's voice usage statistics, recorded
+        per month.
+
+        :param guild_id: The unique identifier of the guild to which the member belongs.
+        :type guild_id: int
+        :param member: An object representing the guild member whose activity is being tracked.
+        :type member: Any
+        :param time: The duration of voice activity to be stored, typically in seconds or minutes.
+        :type time: Any
+        :return: This function does not return any value.
+        :rtype: None
+        """
         if guild_id in self.active_guilds:
             # File path where the activity data is stored
             file_path: str = f'activity/{guild_id}.json'
@@ -68,7 +108,8 @@ class Inactivity(commands.Cog):
                 voice_data: dict = {}
 
             user_id: str = str(member.id)  # Use the user ID as a string
-            date: str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")  # Get the current year and month in YYYY-MM
+            date: str = datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y-%m")  # Get the current year and month in YYYY-MM
 
             # If the user doesn't have an entry in the JSON, initialize it
             if user_id not in voice_data:
@@ -86,7 +127,20 @@ class Inactivity(commands.Cog):
                 json.dump(voice_data, f, indent=4)
 
     async def increment_voice_connections(self, guild_id: int, member: Any) -> None:
-        """Increment the voicechannel_connections counter for a user."""
+        """
+        Increments the count of voice channel connections for a specific guild member. The function tracks the
+        voice channel activities of members in a guild and stores the data in a JSON file. If the guild is
+        active and the corresponding file for the guild exists, the function updates the connection count
+        for the specified member. Otherwise, it initializes necessary data structures and adds the member's
+        voice activity data for the current year and month.
+
+        :param guild_id: The unique identifier for the guild.
+        :type guild_id: int
+        :param member: An object representing a guild member. Assumed to have an 'id' attribute.
+        :type member: Any
+        :return: This function does not return any value.
+        :rtype: None
+        """
         if guild_id in self.active_guilds:
             file_path: str = f'activity/{guild_id}.json'
 
@@ -116,7 +170,21 @@ class Inactivity(commands.Cog):
                 json.dump(voice_data, f, indent=4)
 
     async def load_active_guilds(self):
-        """Load active guilds with voice tracking enabled, their excluded roles, and included users."""
+        """
+        Asynchronously loads active guild configurations and filters for
+        voice tracking. This method iterates over files in the 'configs/guilds'
+        directory and processes each file corresponding to a guild. Guilds with
+        the "voice_tracking" extension enabled are added to the active list.
+        Excluded roles and included users for voice tracking are also stored.
+
+        Each file in the 'configs/guilds' directory represents a guild's configuration
+        and should be named with the guild ID followed by the `.json` extension. Files
+        that start with 'gs', end with 'void.json', or contain invalid guild IDs are ignored.
+
+        :raises ValueError: If a filename does not contain a valid guild ID.
+
+        :return: None
+        """
         logger.info("Loading active guilds with voice tracking enabled.")
         for file in os.listdir('configs/guilds'):
             if file.endswith('.json') and not file.startswith('gs') and not file.endswith('void.json'):
@@ -149,6 +217,22 @@ class Inactivity(commands.Cog):
         app_commands.Choice(name="Status", value=2)
     ])
     async def voice_tracking(self, interaction: discord.Interaction, operation: int) -> None:
+        """
+        Handles the voice channel tracking feature within a Discord server. The functionality allows enabling,
+        disabling, and checking the status of voice channel tracking on a per-guild basis. This command modifies
+        the guild-specific configuration files and maintains an in-memory list of active guilds for efficient
+        operation. It requires specific permissions and can only be executed within a guild context. The command
+        also integrates with the AdminLog cog for logging purposes.
+
+        :param interaction: The interaction object representing the state and context of the command invocation.
+        :type interaction: discord.Interaction
+        :param operation: The operation to perform on the tracking feature:
+                          - 1: Enables the voice tracking.
+                          - 0: Disables the voice tracking.
+                          - 2: Checks the current status of the voice tracking.
+        :type operation: int
+        :return: None
+        """
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}")
         admin_log_cog = interaction.client.get_cog("AdminLog")
         if admin_log_cog:
@@ -224,6 +308,37 @@ class Inactivity(commands.Cog):
         app_commands.Choice(name="90 days", value=90)
     ])
     async def inactivity_check(self, interaction: discord.Interaction, days: int = 30) -> None:
+        """
+        Provides the `inactivity_check` command to identify and list inactive users in a Discord server.
+
+        The command examines user activity, including text messages and voice channel usage, to detect
+        inactivity within a specified number of days. Administrators can use the command to identify
+        members who have not been active recently while accounting for both text-based and voice-based
+        engagement.
+
+        This command also manages exclusions for specific roles and includes specific users explicitly.
+        It supports cached data for optimization, ensuring the command can execute efficiently for
+        frequently used configurations. Progress is shown dynamically during execution, providing real-time
+        updates as text channel histories and voice activity data are processed.
+
+        Command requires the following features to execute:
+        - Permission to manage the guild (accessible only to users with `Manage Server` permissions).
+        - Access to message history within text channels to assess user activity.
+        - Cached and/or live retrieval of voice activity logs stored in an appropriate format.
+
+        :param interaction: Represents the interaction object from the Discord API. It contains
+            information about the user interacting and the context of the interaction, such as the guild
+            and command name.
+        :type interaction: discord.Interaction
+        :param days: Specifies the number of days to check for user inactivity. Default is 30 days. The
+            parameter determines the cutoff for considering message and voice activity data in the
+            inactivity reports.
+        :type days: int
+        :return: This command does not return any value or output but performs its functionality by
+            interacting directly with the Discord server. It sends messages or embed objects as responses
+            to the initiating user or admin group based on inactivity data.
+        :rtype: None
+        """
         logger.info(f"Command: {interaction.command.name} used by {interaction.user.name}, days: {days}")
         admin_log_cog = interaction.client.get_cog("AdminLog")
         if admin_log_cog:
@@ -233,51 +348,138 @@ class Inactivity(commands.Cog):
                 priority="info"
             )
 
-        channel_counter: int = 0
-        message_counter: int = 0
-        past_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
-        last_message_list: dict = {}
-        voice_times: dict = {}
-
         guild = interaction.guild
         guild_id = guild.id
         excluded_roles = self.excluded_roles.get(guild_id, [])
         included_users = self.included_users.get(guild_id, [])
 
+        channel_counter: int = 0
+        message_counter: int = 0
+        api_call_counter: int = 0
+        total_channels: int = len(interaction.guild.text_channels)
+        past_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
+        last_message_list: dict = {}
+        voice_times: dict = {}
+
         # Defer the interaction to prevent timeout
         await interaction.response.defer(thinking=True)  # noqa
+        api_call_counter += 1
+
+        async def update_progress() -> None:
+            nonlocal api_call_counter
+            try:
+                api_call_counter += 1
+                await interaction.edit_original_response(
+                    content=(
+                        f"Checked {message_counter} messages & "
+                        f"completed {channel_counter} channels of {total_channels} available channels "
+                        f"(API calls: {api_call_counter})"
+                    )
+                )
+            except discord.HTTPException as e:
+                logger.warning(f"Failed to update progress: {e}")
+
+        await update_progress()
+
+        cache_key = (guild_id, days)
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cached_entry = self.inactivity_cache.get(cache_key)
+        if cached_entry and (now - cached_entry[0]).total_seconds() < 600:
+            api_call_counter += 1
+            await interaction.edit_original_response(content="Using cached inactivity data")
+            inactive_users = cached_entry[1]
+            mention_member_list: str = "\n".join([
+                f"<@{member.id}>   ⏱️ {hours}h {minutes}m   🔗 {connections}"
+                if hours > 0 or minutes > 0 or connections > 0
+                else f"<@{member.id}>"
+                for member, hours, minutes, connections in inactive_users
+            ])
+            included_roles_str: str = ", ".join([f"<@&{role.id}>" for role in guild.roles if role.id in excluded_roles])
+            included_users_str: str = ", ".join([f"<@{user}>" for user in included_users])
+            if inactive_users:
+                embed = discord.Embed(
+                    title=f"Inactive Users Report (Last {days} Days)",
+                    description=f"""
+                    **Excluded Roles:** {included_roles_str}
+                    **Tracked Users:** {included_users_str}
+
+                    This report lists users who haven't sent a message in the last {days} days.
+
+                    ⏱️ = Total time spent in voice channels
+                    🔗 = Total number of joined voice channels\n
+                    """,
+                    color=discord.Color.blue(),
+                )
+                embed.add_field(name="Inactive Users", value=mention_member_list, inline=False)
+                embed.set_footer(text=f"Generated by {interaction.user.name} (cached)")
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send(content=f"No inactive users found in the last {days} days.")
+            return
 
         # Load voice activity data from the JSON file for the guild
-        voice_data_file: str = f'activity/{guild_id}.json'
+        voice_data_file: str = f"activity/{guild_id}.json"
 
         if os.path.isfile(voice_data_file):
-            with open(voice_data_file, 'r') as f:
+            with open(voice_data_file, "r") as f:
                 voice_times = json.load(f)
 
-        try:
-            for channel in guild.text_channels:  # Iterate only over text channels
-                channel_counter += 1
-                # Check permissions before fetching the history
-                if not channel.permissions_for(guild.me).read_message_history:
-                    logger.warning(f"Bot lacks 'Read Message History' in {channel.name}")
-                    continue
-
-                # Fetch channel history after the specified date
-                async for message in channel.history(after=past_date):
-                    # Skip messages from bots or excluded roles unless the user is explicitly included
-                    if message.author.bot:
+        async def process_history(target: discord.abc.Messageable) -> None:
+            nonlocal message_counter, api_call_counter
+            try:
+                api_call_counter += 1
+                async for message in target.history(limit=None, after=past_date):
+                    author = message.author
+                    if not isinstance(author, discord.Member):
                         continue
-                    if (any(role.id in excluded_roles for role in message.author.roles) and
-                            message.author.id not in included_users):
+                    if author.bot:
+                        continue
+                    if (any(role.id in excluded_roles for role in author.roles) and
+                            author.id not in included_users):
                         continue
 
                     message_counter += 1
-                    # Track the most recent message timestamp for each user
-                    if message.author.id not in last_message_list:
-                        last_message_list[message.author.id] = message.created_at
-                    else:
-                        if message.created_at > last_message_list[message.author.id]:
-                            last_message_list[message.author.id] = message.created_at
+                    if (author.id not in last_message_list or
+                            message.created_at > last_message_list[author.id]):
+                        last_message_list[author.id] = message.created_at
+            except discord.HTTPException as e:
+                logger.warning(
+                    f"Failed to fetch history for {getattr(target, 'name', 'unknown')}: {e}")
+
+        try:
+            for channel in guild.text_channels:  # Iterate only over text channels
+                if not channel.permissions_for(guild.me).read_message_history:
+                    logger.warning(f"Bot lacks 'Read Message History' in {channel.name}")
+                else:
+                    await process_history(channel)
+                channel_counter += 1
+                await update_progress()
+
+                for thread in channel.threads:
+                    last_message_time = (
+                        discord.utils.snowflake_time(thread.last_message_id)
+                        if thread.last_message_id
+                        else None
+                    )
+                    if last_message_time and last_message_time >= past_date:
+                        total_channels += 1
+                        await process_history(thread)
+                        channel_counter += 1
+                        await update_progress()
+
+                api_call_counter += 1
+                async for thread in channel.archived_threads(limit=None):
+                    last_message_time = (
+                        discord.utils.snowflake_time(thread.last_message_id)
+                        if thread.last_message_id
+                        else None
+                    )
+                    if last_message_time and last_message_time < past_date:
+                        break
+                    total_channels += 1
+                    await process_history(thread)
+                    channel_counter += 1
+                    await update_progress()
 
         except Exception as e:
             logger.error(f"Failed to retrieve channel history during inactivity_check: {e}")
@@ -320,7 +522,11 @@ class Inactivity(commands.Cog):
 
                 inactive_users.append((member, hours, minutes, total_connections))
 
-        # Create the embed
+        self.inactivity_cache[cache_key] = (
+            datetime.datetime.now(datetime.timezone.utc),
+            inactive_users,
+        )
+
         if inactive_users:
             mention_member_list: str = "\n".join([
                 f"<@{member.id}>   ⏱️ {hours}h {minutes}m   🔗 {connections}"
@@ -328,19 +534,23 @@ class Inactivity(commands.Cog):
                 else f"<@{member.id}>"
                 for member, hours, minutes, connections in inactive_users
             ])
-            included_roles_str: str = ", ".join([f"<@&{role.id}>" for role in guild.roles if role.id in excluded_roles])
+            included_roles_str: str = ", ".join(
+                [f"<@&{role.id}>" for role in guild.roles if role.id in excluded_roles]
+            )
             included_users_str: str = ", ".join([f"<@{user}>" for user in included_users])
-            embed = discord.Embed(title=f"Inactive Users Report (Last {days} Days)",
-                                  description=f'''
-                                  **Excluded Roles:** {included_roles_str}
-                                  **Tracked Users:** {included_users_str}
+            embed = discord.Embed(
+                title=f"Inactive Users Report (Last {days} Days)",
+                description=f"""
+                **Excluded Roles:** {included_roles_str}
+                **Tracked Users:** {included_users_str}
 
-                                  This report lists users who haven't sent a message in the last {days} days.
-                                  
-                                  ⏱️ = Total time spent in voice channels
-                                  🔗 = Total number of joined voice channels\n
-                                  ''',
-                                  color=discord.Color.blue())
+                This report lists users who haven't sent a message in the last {days} days.
+
+                ⏱️ = Total time spent in voice channels
+                🔗 = Total number of joined voice channels\n
+                """,
+                color=discord.Color.blue(),
+            )
 
             embed.add_field(name="Inactive Users", value=mention_member_list, inline=False)
             embed.set_footer(text=f"Generated by {interaction.user.name}")
@@ -360,8 +570,26 @@ class Inactivity(commands.Cog):
     ])
     async def exclude_roles(self, interaction: discord.Interaction, action: str, role: discord.Role = None) -> None:
         """
-        Manage roles to exclude from activity tracking.
-        Actions: add, remove, list
+        Exclude roles from activity tracking within a Discord server by adding,
+        removing, or listing roles that are excluded. This command is guild-only
+        and requires the `manage_guild` permission to execute. It supports specifying
+        an action (add, remove, or list) along with an optional role depending on the
+        chosen action.
+
+        The functionality allows managing roles for exclusion in the guild's
+        activity tracking while maintaining appropriate logging of interactions.
+
+        :param interaction: The Discord interaction object representing the
+                            execution context of the command.
+        :type interaction: discord.Interaction
+        :param action: The action to perform with the roles for exclusion.
+                       Valid actions are "Add", "Remove", and "List".
+        :type action: str
+        :param role: The Discord role that will be added or removed from the
+                     exclusion list, required for "Add" or "Remove" actions.
+                     For "List" action, this parameter is not used.
+        :type role: discord.Role, optional
+        :return: None
         """
         logger.info(
             f"Command: {interaction.command.name} used by {interaction.user.name}, action: {action}, role: {role}")
@@ -430,8 +658,23 @@ class Inactivity(commands.Cog):
     ])
     async def include_users(self, interaction: discord.Interaction, action: str, user: discord.User = None) -> None:
         """
-        Manage users to include in activity tracking.
-        Actions: add, remove, list
+        Handles the manual inclusion of users in the activity tracking feature,
+        allowing administrators to add, remove, or view the list of included users
+        for a specific guild. The command is restricted to users with permission
+        to manage the guild and is only available in guild contexts.
+
+        Additionally, logs interactions in the 'AdminLog' cog if configured,
+        including the action performed, the targeted user, and the associated
+        guild. Actions can include adding a user, removing a user, or listing
+        currently tracked users.
+
+        :param interaction: The interaction object representing the command invocation.
+        :type interaction: discord.Interaction
+        :param action: The action to perform (add, remove, or list).
+        :type action: str
+        :param user: The user to be added or removed from tracking. Required for add/remove actions.
+        :type user: discord.User, optional
+        :return: None
         """
         logger.info(
             f"Command: tracking_include used by {interaction.user.name}, action: {action}, user: {user}")
@@ -459,7 +702,8 @@ class Inactivity(commands.Cog):
                 await self.update_guild_config_included_users(guild_id, included_users)
                 await interaction.response.send_message(f"User {user.mention} added to the inclusion list.")  # noqa
             else:
-                await interaction.response.send_message(f"User {user.mention} is already in the inclusion list.")  # noqa
+                await interaction.response.send_message(
+                    f"User {user.mention} is already in the inclusion list.")  # noqa
 
         elif action.lower() == "remove":
             if user is None:
@@ -490,7 +734,20 @@ class Inactivity(commands.Cog):
             await interaction.response.send_message("Invalid action. Please use 'add', 'remove', or 'list'.")  # noqa
 
     async def update_guild_config_excluded_roles(self, guild_id: int, excluded_roles: list[int]) -> None:
-        """Update the guild's config file with the new list of excluded roles."""
+        """
+        Updates the guild configuration file with the specified list of excluded roles.
+
+        This method reads the configuration file for the given guild, updates the
+        'excluded_roles' key with the provided list, and writes the updated
+        configuration back to the file. If the configuration file does not exist,
+        the method creates a new configuration file with the given data.
+
+        :param guild_id: The unique identifier of the guild.
+        :type guild_id: int
+        :param excluded_roles: A list of role IDs to exclude.
+        :type excluded_roles: list[int]
+        :return: None
+        """
         config_file = f'configs/guilds/{guild_id}.json'
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
@@ -503,7 +760,17 @@ class Inactivity(commands.Cog):
             json.dump(guild_config, f, indent=4)
 
     async def update_guild_config_included_users(self, guild_id: int, included_users: list[int]) -> None:
-        """Update the guild's config file with the new list of included users."""
+        """
+        Updates the guild configuration file with the specified included users for voice. If the configuration
+        file does not exist for the given Guild ID, it creates the configuration file with the provided data.
+
+        :param guild_id: The unique identifier of the guild for which the configuration is being updated.
+        :type guild_id: int
+        :param included_users: A list of user IDs to be included in the voice configuration.
+        :type included_users: list[int]
+        :return: This method does not return a value.
+        :rtype: None
+        """
         config_file = f'configs/guilds/{guild_id}.json'
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
@@ -518,4 +785,16 @@ class Inactivity(commands.Cog):
 
 # Add the COG to the bot
 async def setup(bot) -> None:
+    """
+    Sets up the cog and adds it to the bot.
+
+    This function is asynchronous and is responsible for initializing the
+    Inactivity cog and registering it to the provided bot instance. Once this
+    setup function is invoked, the Inactivity cog will be fully operational and
+    available in the bot.
+
+    :param bot: The bot instance where the Inactivity cog will be added. It must
+        be an instance of a bot framework supporting cogs.
+    :return: This function does not return a value.
+    """
     await bot.add_cog(Inactivity(bot))
