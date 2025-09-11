@@ -241,6 +241,7 @@ class Inactivity(commands.Cog):
 
         channel_counter: int = 0
         message_counter: int = 0
+        api_call_counter: int = 0
         total_channels: int = len(guild.text_channels)
         past_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
         last_message_list: dict = {}
@@ -248,13 +249,17 @@ class Inactivity(commands.Cog):
 
         # Defer the interaction to prevent timeout
         await interaction.response.defer(thinking=True)  # noqa
+        api_call_counter += 1
 
         async def update_progress() -> None:
+            nonlocal api_call_counter
             try:
+                api_call_counter += 1
                 await interaction.edit_original_response(
                     content=(
                         f"Checked {message_counter} messages & "
-                        f"completed {channel_counter} channels of {total_channels} available channels"
+                        f"completed {channel_counter} channels of {total_channels} available channels "
+                        f"(API calls: {api_call_counter})"
                     )
                 )
             except discord.HTTPException as e:
@@ -266,6 +271,7 @@ class Inactivity(commands.Cog):
         now = datetime.datetime.now(datetime.timezone.utc)
         cached_entry = self.inactivity_cache.get(cache_key)
         if cached_entry and (now - cached_entry[0]).total_seconds() < 600:
+            api_call_counter += 1
             await interaction.edit_original_response(content="Using cached inactivity data")
             inactive_users = cached_entry[1]
             mention_member_list: str = "\n".join([
@@ -305,8 +311,9 @@ class Inactivity(commands.Cog):
                 voice_times = json.load(f)
 
         async def process_history(target: discord.abc.Messageable) -> None:
-            nonlocal message_counter
+            nonlocal message_counter, api_call_counter
             try:
+                api_call_counter += 1
                 async for message in target.history(limit=None, after=past_date):
                     author = message.author
                     if not isinstance(author, discord.Member):
@@ -346,6 +353,7 @@ class Inactivity(commands.Cog):
                         channel_counter += 1
                         await update_progress()
 
+                api_call_counter += 1
                 async for thread in channel.archived_threads(limit=None):
                     last_message_time = (
                         discord.utils.snowflake_time(thread.last_message_id)

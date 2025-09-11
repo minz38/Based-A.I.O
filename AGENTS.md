@@ -14,7 +14,7 @@
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
 - The link uses the message's `jump_url` so logs open directly to the original message.
 - Discord threads do not provide a `last_message_at` attribute; use `discord.utils.snowflake_time(thread.last_message_id)` to determine a thread's last activity without fetching additional messages.
-- The inactivity check caches results for ten minutes and updates the deferred response with progress (checked messages and completed channels).
+- The inactivity check caches results for ten minutes and updates the deferred response with progress (checked messages, completed channels, and API calls).
 - Inactivity scans fetch full channel history (`limit=None`) to avoid missing messages from active users.
 
 This repository powers a Discord bot built around modular extensions and utilities. This file summarizes the layout and guidelines for AI contributors.
