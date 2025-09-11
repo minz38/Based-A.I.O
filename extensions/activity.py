@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import datetime
 import discord
 from discord.ext import commands
@@ -254,30 +255,56 @@ class Inactivity(commands.Cog):
             with open(voice_data_file, 'r') as f:
                 voice_times = json.load(f)
 
+        async def process_history(channel_like: discord.abc.Messageable) -> None:
+            nonlocal message_counter, last_message_list
+            while True:
+                try:
+                    async for message in channel_like.history(limit=None, after=past_date):
+                        if message.author.bot:
+                            continue
+                        if (any(role.id in excluded_roles for role in message.author.roles) and
+                                message.author.id not in included_users):
+                            continue
+
+                        message_counter += 1
+                        last_time = last_message_list.get(message.author.id)
+                        if not last_time or message.created_at > last_time:
+                            last_message_list[message.author.id] = message.created_at
+                    break
+                except discord.HTTPException as err:
+                    if err.status == 429:
+                        retry_after = float(err.response.headers.get("Retry-After", 1))
+                        logger.warning(
+                            f"Rate limited while fetching history for {getattr(channel_like, 'name', 'thread')} - sleeping for {retry_after} seconds"
+                        )
+                        await asyncio.sleep(retry_after)
+                    else:
+                        logger.error(
+                            f"Failed to retrieve channel history for {getattr(channel_like, 'name', 'thread')}: {err}"
+                        )
+                        break
+
         try:
             for channel in guild.text_channels:  # Iterate only over text channels
                 channel_counter += 1
-                # Check permissions before fetching the history
                 if not channel.permissions_for(guild.me).read_message_history:
                     logger.warning(f"Bot lacks 'Read Message History' in {channel.name}")
                     continue
 
-                # Fetch channel history after the specified date
-                async for message in channel.history(after=past_date):
-                    # Skip messages from bots or excluded roles unless the user is explicitly included
-                    if message.author.bot:
-                        continue
-                    if (any(role.id in excluded_roles for role in message.author.roles) and
-                            message.author.id not in included_users):
-                        continue
+                await process_history(channel)
 
-                    message_counter += 1
-                    # Track the most recent message timestamp for each user
-                    if message.author.id not in last_message_list:
-                        last_message_list[message.author.id] = message.created_at
-                    else:
-                        if message.created_at > last_message_list[message.author.id]:
-                            last_message_list[message.author.id] = message.created_at
+                for thread in channel.threads:
+                    if not thread.permissions_for(guild.me).read_message_history:
+                        continue
+                    await process_history(thread)
+
+                try:
+                    async for thread in channel.archived_threads(limit=None, after=past_date):
+                        if not thread.permissions_for(guild.me).read_message_history:
+                            continue
+                        await process_history(thread)
+                except discord.Forbidden:
+                    logger.warning(f"Bot lacks permission to read archived threads in {channel.name}")
 
         except Exception as e:
             logger.error(f"Failed to retrieve channel history during inactivity_check: {e}")
