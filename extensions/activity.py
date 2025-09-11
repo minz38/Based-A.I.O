@@ -307,7 +307,7 @@ class Inactivity(commands.Cog):
         async def process_history(target: discord.abc.Messageable) -> None:
             nonlocal message_counter
             try:
-                async for message in target.history(after=past_date):
+                async for message in target.history(limit=None, after=past_date):
                     author = message.author
                     if not isinstance(author, discord.Member):
                         continue
