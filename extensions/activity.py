@@ -10,7 +10,6 @@ from typing import Any
 
 # Initialize the logger
 logger = LoggerManager(name="Inactivity", level="INFO", log_file="logs/Inactivity.log").get_logger()
-# test commit
 
 class Inactivity(commands.Cog):
     def __init__(self, bot):
@@ -321,12 +320,22 @@ class Inactivity(commands.Cog):
                 await process_history(channel)
 
                 for thread in channel.threads:
-                    if thread.last_message_at and thread.last_message_at >= past_date:
+                    last_message_time = (
+                        discord.utils.snowflake_time(thread.last_message_id)
+                        if thread.last_message_id
+                        else None
+                    )
+                    if last_message_time and last_message_time >= past_date:
                         channel_counter += 1
                         await process_history(thread)
 
                 async for thread in channel.archived_threads(limit=None):
-                    if thread.last_message_at and thread.last_message_at < past_date:
+                    last_message_time = (
+                        discord.utils.snowflake_time(thread.last_message_id)
+                        if thread.last_message_id
+                        else None
+                    )
+                    if last_message_time and last_message_time < past_date:
                         break
                     channel_counter += 1
                     await process_history(thread)

@@ -13,6 +13,7 @@
 - After a successful upload the bot reacts with `:white_check_mark:` to mark processed messages and counts emoji reactions each time to ensure accuracy after restarts.
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
 - The link uses the message's `jump_url` so logs open directly to the original message.
+- Discord threads do not provide a `last_message_at` attribute; use `discord.utils.snowflake_time(thread.last_message_id)` to determine a thread's last activity without fetching additional messages.
 
 This repository powers a Discord bot built around modular extensions and utilities. This file summarizes the layout and guidelines for AI contributors.
 
