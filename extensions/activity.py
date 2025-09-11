@@ -234,6 +234,11 @@ class Inactivity(commands.Cog):
                 priority="info"
             )
 
+        guild = interaction.guild
+        guild_id = guild.id
+        excluded_roles = self.excluded_roles.get(guild_id, [])
+        included_users = self.included_users.get(guild_id, [])
+
         channel_counter: int = 0
         message_counter: int = 0
         total_channels: int = len(guild.text_channels)
@@ -241,21 +246,19 @@ class Inactivity(commands.Cog):
         last_message_list: dict = {}
         voice_times: dict = {}
 
-        guild = interaction.guild
-        guild_id = guild.id
-        excluded_roles = self.excluded_roles.get(guild_id, [])
-        included_users = self.included_users.get(guild_id, [])
-
         # Defer the interaction to prevent timeout
         await interaction.response.defer(thinking=True)  # noqa
 
         async def update_progress() -> None:
-            await interaction.edit_original_response(
-                content=(
-                    f"Checked {message_counter} messages & "
-                    f"completed {channel_counter} channels of {total_channels} available channels"
+            try:
+                await interaction.edit_original_response(
+                    content=(
+                        f"Checked {message_counter} messages & "
+                        f"completed {channel_counter} channels of {total_channels} available channels"
+                    )
                 )
-            )
+            except discord.HTTPException as e:
+                logger.warning(f"Failed to update progress: {e}")
 
         await update_progress()
 
