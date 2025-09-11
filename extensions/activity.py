@@ -236,6 +236,7 @@ class Inactivity(commands.Cog):
 
         channel_counter: int = 0
         message_counter: int = 0
+        total_channels: int = len(guild.text_channels)
         past_date = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days)
         last_message_list: dict = {}
         voice_times: dict = {}
@@ -248,10 +249,21 @@ class Inactivity(commands.Cog):
         # Defer the interaction to prevent timeout
         await interaction.response.defer(thinking=True)  # noqa
 
+        async def update_progress() -> None:
+            await interaction.edit_original_response(
+                content=(
+                    f"Checked {message_counter} messages & "
+                    f"completed {channel_counter} channels of {total_channels} available channels"
+                )
+            )
+
+        await update_progress()
+
         cache_key = (guild_id, days)
         now = datetime.datetime.now(datetime.timezone.utc)
         cached_entry = self.inactivity_cache.get(cache_key)
         if cached_entry and (now - cached_entry[0]).total_seconds() < 600:
+            await interaction.edit_original_response(content="Using cached inactivity data")
             inactive_users = cached_entry[1]
             mention_member_list: str = "\n".join([
                 f"<@{member.id}>   ⏱️ {hours}h {minutes}m   🔗 {connections}"
@@ -312,12 +324,12 @@ class Inactivity(commands.Cog):
 
         try:
             for channel in guild.text_channels:  # Iterate only over text channels
-                channel_counter += 1
                 if not channel.permissions_for(guild.me).read_message_history:
                     logger.warning(f"Bot lacks 'Read Message History' in {channel.name}")
-                    continue
-
-                await process_history(channel)
+                else:
+                    await process_history(channel)
+                channel_counter += 1
+                await update_progress()
 
                 for thread in channel.threads:
                     last_message_time = (
@@ -326,8 +338,10 @@ class Inactivity(commands.Cog):
                         else None
                     )
                     if last_message_time and last_message_time >= past_date:
-                        channel_counter += 1
+                        total_channels += 1
                         await process_history(thread)
+                        channel_counter += 1
+                        await update_progress()
 
                 async for thread in channel.archived_threads(limit=None):
                     last_message_time = (
@@ -337,8 +351,10 @@ class Inactivity(commands.Cog):
                     )
                     if last_message_time and last_message_time < past_date:
                         break
-                    channel_counter += 1
+                    total_channels += 1
                     await process_history(thread)
+                    channel_counter += 1
+                    await update_progress()
 
         except Exception as e:
             logger.error(f"Failed to retrieve channel history during inactivity_check: {e}")
