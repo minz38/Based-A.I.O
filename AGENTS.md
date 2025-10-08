@@ -9,7 +9,7 @@
 
 ## Notes
 - `image_upvote` extension allows images, videos, and audio clips posted anywhere in a guild to be uploaded once they receive five `:arrow_upvote:` reactions. Admins can force the upload via a message context menu available in all channels.
-- Uploaded images, videos, and audio are saved to `cdn/Uploads/`. The folder also contains a `links.json` file listing CDN URLs of all saved uploads, regenerated after each new upload. Files use the naming pattern `<user_id>-<message_id>_<nn><extension>` where `nn` increments for multiple attachments. The feature reads environment variables `IMAGE_UPVOTE_EMOJI_NAME` and `IMAGE_UPVOTE_THRESHOLD`.
+- Uploaded images, videos, and audio are transcoded locally (thumbnails generated for non-audio) and pushed to the configured S3-compatible bucket. Metadata, including the public S3 URLs, is stored in the `media_uploads` Postgres table. Set `IMAGE_UPVOTE_S3_ENDPOINT`, `IMAGE_UPVOTE_S3_BUCKET`, `IMAGE_UPVOTE_S3_ACCESS_KEY`, and `IMAGE_UPVOTE_S3_SECRET_KEY` (optionally `IMAGE_UPVOTE_S3_REGION`) to enable uploads. Moderators can remove entries via the `/delete-upload` command, which deletes the S3 objects (including thumbnails) and prunes the database row. Files use the naming pattern `<user_id>-<message_id>_<nn><extension>`. The feature reads environment variables `IMAGE_UPVOTE_EMOJI_NAME` and `IMAGE_UPVOTE_THRESHOLD`.
 - After a successful upload the bot reacts with `:white_check_mark:` to mark processed messages and counts emoji reactions each time to ensure accuracy after restarts.
 - Image uploads are logged through the `AdminLog` cog with their filename, size in megabytes, a link to the source message, and whether they were saved via upvotes or forced.
 - The link uses the message's `jump_url` so logs open directly to the original message.
@@ -53,4 +53,3 @@ python -m py_compile $(git ls-files '*.py')
 ```
 
 Run the relevant command and make a best effort to confirm success before committing changes.
-
