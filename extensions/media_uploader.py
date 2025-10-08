@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import asyncpg
 import boto3
@@ -25,7 +26,6 @@ S3_ACCESS_KEY = os.getenv("IMAGE_UPVOTE_S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("IMAGE_UPVOTE_S3_SECRET_KEY")
 S3_REGION = os.getenv("IMAGE_UPVOTE_S3_REGION")
 DATABASE_TABLE = "media_uploads"
-
 
 logger = LoggerManager(name="ImageUpvote", level="INFO", log_file="logs/ImageUpvote.log").get_logger()
 
@@ -116,16 +116,17 @@ class ImageUpvote(commands.Cog):
         if content_type.startswith("image") or content_type.startswith("video") or content_type.startswith("audio"):
             return True
         extension = Path(attachment.filename).suffix.lower()
-        return extension in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".mkv", ".webm", ".avi", ".mp3", ".wav", ".ogg", ".flac", ".m4a"}
+        return extension in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mov", ".mkv", ".webm", ".avi", ".mp3",
+                             ".wav", ".ogg", ".flac", ".m4a"}
 
     async def _record_upload(
-        self,
-        filename: str,
-        file_url: str,
-        thumbnail_url: Optional[str],
-        file_format: str,
-        creator_name: str,
-        uploaded_by: str,
+            self,
+            filename: str,
+            file_url: str,
+            thumbnail_url: Optional[str],
+            file_format: str,
+            creator_name: str,
+            uploaded_by: str,
     ) -> None:
         if not self._db_pool:
             logger.warning("Skipping database write for %s because pool is not initialised.", filename)
@@ -196,6 +197,32 @@ class ImageUpvote(commands.Cog):
             ".mp3": "audio/mpeg",
         }
         return mapping.get(extension.lower(), "application/octet-stream")
+
+    def _extract_key_from_url(self, url: Optional[str]) -> Optional[str]:
+        if not url:
+            return None
+        if self._s3_url_prefix:
+            prefix = self._s3_url_prefix.rstrip("/") + "/"
+            if url.startswith(prefix):
+                return url[len(prefix):]
+        parsed = urlparse(url)
+        path = parsed.path.lstrip("/")
+        if not path:
+            return None
+        if self._s3_bucket:
+            bucket = self._s3_bucket.strip("/")
+            if path.startswith(f"{bucket}/"):
+                path = path[len(bucket) + 1:]
+        return path or None
+
+    async def _delete_s3_object(self, object_key: str) -> None:
+        if not self._s3_client or not self._s3_bucket:
+            raise RuntimeError("S3 client not configured")
+
+        def _delete() -> None:
+            self._s3_client.delete_object(Bucket=self._s3_bucket, Key=object_key)
+
+        await asyncio.to_thread(_delete)
 
     async def _save_image(self, data: bytes, file_stem: str) -> tuple[Path, Optional[Path], str]:
         try:
@@ -330,6 +357,55 @@ class ImageUpvote(commands.Cog):
         finally:
             if temp_path:
                 temp_path.unlink(missing_ok=True)
+
+    async def delete_media_entry(self, file_id_str: str) -> tuple[bool, Optional[str]]:
+        if not self._db_pool:
+            return False, "Database connection is not initialised."
+        if not self._s3_client or not self._s3_bucket:
+            return False, "S3 client is not configured."
+        try:
+            file_uuid = uuid.UUID(file_id_str)
+        except ValueError:
+            return False, "The provided file_id is not a valid UUID."
+
+        try:
+            async with self._db_pool.acquire() as connection:
+                record = await connection.fetchrow(
+                    f"SELECT file_path, thumbnail_path FROM {DATABASE_TABLE} WHERE file_id=$1",
+                    file_uuid,
+                )
+        except Exception:
+            logger.exception("Failed to fetch media metadata for %s", file_id_str)
+            return False, "Failed to query media metadata."
+
+        if record is None:
+            return False, "No media entry found for that file_id."
+
+        main_key = self._extract_key_from_url(record["file_path"])
+        thumb_key = self._extract_key_from_url(record["thumbnail_path"])
+        if not main_key:
+            return False, "Could not determine the S3 object key for the media file."
+
+        try:
+            await self._delete_s3_object(main_key)
+            if thumb_key:
+                await self._delete_s3_object(thumb_key)
+        except Exception as exc:
+            logger.exception("Failed to delete S3 objects for %s", file_uuid)
+            return False, f"Failed to delete from S3: {exc}"
+
+        try:
+            async with self._db_pool.acquire() as connection:
+                await connection.execute(
+                    f"DELETE FROM {DATABASE_TABLE} WHERE file_id=$1",
+                    file_uuid,
+                )
+        except Exception as exc:
+            logger.exception("Deleted S3 objects but failed to remove DB record for %s", file_uuid)
+            return False, f"S3 objects removed, but database deletion failed: {exc}"
+
+        logger.info("Deleted media entry %s from S3 and database.", file_uuid)
+        return True, None
 
     async def handle_upload(
             self,
@@ -514,8 +590,8 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
         return
     if not any(
-        cog._is_supported_attachment(att)
-        for att in message.attachments
+            cog._is_supported_attachment(att)
+            for att in message.attachments
     ):
         await interaction.response.send_message(
             "The selected message does not contain an image, video, or audio.",
@@ -528,6 +604,29 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
         await interaction.followup.send("Media uploaded to S3.", ephemeral=True)
     else:
         await interaction.followup.send("Failed to save any attachments.", ephemeral=True)
+
+
+@shadow_bot.tree.command(name="delete-upload", description="Delete an uploaded media item from S3 by file id.")
+@app_commands.allowed_installs(guilds=True, users=False)
+@app_commands.guild_only()
+@app_commands.describe(file_id="UUID for the uploaded media entry")
+async def delete_upload(interaction: discord.Interaction, file_id: str) -> None:
+    logger.info(
+        f"Delete upload triggered by {interaction.user} in {interaction.channel} for file_id {file_id}"
+    )
+    if not interaction.user.guild_permissions.manage_messages:
+        await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
+        return
+    cog = interaction.client.get_cog("ImageUpvote")
+    if not cog:
+        await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    success, error_message = await cog.delete_media_entry(file_id)
+    if success:
+        await interaction.followup.send("Media entry deleted from S3 and database.", ephemeral=True)
+    else:
+        await interaction.followup.send(error_message or "Failed to delete media entry.", ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
