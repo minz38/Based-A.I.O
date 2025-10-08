@@ -5,7 +5,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import asyncpg
@@ -358,33 +358,55 @@ class ImageUpvote(commands.Cog):
             if temp_path:
                 temp_path.unlink(missing_ok=True)
 
-    async def delete_media_entry(self, file_id_str: str) -> tuple[bool, Optional[str]]:
+    async def delete_media_entry(self, file_id_str: str) -> tuple[bool, Optional[str], Optional[dict[str, Any]]]:
         if not self._db_pool:
-            return False, "Database connection is not initialised."
+            return False, "Database connection is not initialised.", None
         if not self._s3_client or not self._s3_bucket:
-            return False, "S3 client is not configured."
+            return False, "S3 client is not configured.", None
         try:
             file_uuid = uuid.UUID(file_id_str)
         except ValueError:
-            return False, "The provided file_id is not a valid UUID."
+            return False, "The provided file_id is not a valid UUID.", None
 
         try:
             async with self._db_pool.acquire() as connection:
                 record = await connection.fetchrow(
-                    f"SELECT file_path, thumbnail_path FROM {DATABASE_TABLE} WHERE file_id=$1",
+                    f"""
+                        SELECT file_id,
+                               filename,
+                               file_path,
+                               thumbnail_path,
+                               file_format,
+                               creator_name,
+                               uploaded_by,
+                               date_of_upload
+                        FROM {DATABASE_TABLE}
+                        WHERE file_id=$1
+                    """,
                     file_uuid,
                 )
         except Exception:
             logger.exception("Failed to fetch media metadata for %s", file_id_str)
-            return False, "Failed to query media metadata."
+            return False, "Failed to query media metadata.", None
 
         if record is None:
-            return False, "No media entry found for that file_id."
+            return False, "No media entry found for that file_id.", None
 
         main_key = self._extract_key_from_url(record["file_path"])
         thumb_key = self._extract_key_from_url(record["thumbnail_path"])
         if not main_key:
-            return False, "Could not determine the S3 object key for the media file."
+            return False, "Could not determine the S3 object key for the media file.", None
+
+        metadata: dict[str, Any] = {
+            "file_id": str(record["file_id"]),
+            "filename": record["filename"],
+            "file_url": record["file_path"],
+            "thumbnail_url": record["thumbnail_path"],
+            "file_format": record["file_format"],
+            "creator_name": record["creator_name"],
+            "uploaded_by": record["uploaded_by"],
+            "date_of_upload": record["date_of_upload"],
+        }
 
         try:
             await self._delete_s3_object(main_key)
@@ -392,7 +414,7 @@ class ImageUpvote(commands.Cog):
                 await self._delete_s3_object(thumb_key)
         except Exception as exc:
             logger.exception("Failed to delete S3 objects for %s", file_uuid)
-            return False, f"Failed to delete from S3: {exc}"
+            return False, f"Failed to delete from S3: {exc}", metadata
 
         try:
             async with self._db_pool.acquire() as connection:
@@ -402,10 +424,10 @@ class ImageUpvote(commands.Cog):
                 )
         except Exception as exc:
             logger.exception("Deleted S3 objects but failed to remove DB record for %s", file_uuid)
-            return False, f"S3 objects removed, but database deletion failed: {exc}"
+            return False, f"S3 objects removed, but database deletion failed: {exc}", metadata
 
         logger.info("Deleted media entry %s from S3 and database.", file_uuid)
-        return True, None
+        return True, None, metadata
 
     async def handle_upload(
             self,
@@ -621,12 +643,49 @@ async def delete_upload(interaction: discord.Interaction, file_id: str) -> None:
     if not cog:
         await interaction.response.send_message("Image upvote system is not loaded.", ephemeral=True)
         return
+    admin_log_cog = interaction.client.get_cog("AdminLog")
     await interaction.response.defer(ephemeral=True)
-    success, error_message = await cog.delete_media_entry(file_id)
+    success, error_message, metadata = await cog.delete_media_entry(file_id)
     if success:
         await interaction.followup.send("Media entry deleted from S3 and database.", ephemeral=True)
+        if admin_log_cog and interaction.guild:
+            info = metadata or {}
+            event_lines = [
+                f"File ID: {info.get('file_id', file_id)}",
+                f"Filename: {info.get('filename', 'Unknown')} ({info.get('file_format', 'n/a')})",
+                f"Creator: {info.get('creator_name', 'Unknown')}",
+                f"Uploaded by: {info.get('uploaded_by', 'Unknown')}",
+            ]
+            if info.get("file_url"):
+                event_lines.append(f"File URL: {info['file_url']}")
+            if info.get("thumbnail_url"):
+                event_lines.append(f"Thumbnail URL: {info['thumbnail_url']}")
+            if info.get("date_of_upload"):
+                event_lines.append(f"Uploaded at: {info['date_of_upload']}")
+            event_lines.append(f"Deleted by: {interaction.user.mention}")
+            await admin_log_cog.log_event(
+                interaction.guild.id,
+                priority="warning",
+                event_name="Media upload deleted",
+                event_status="\n".join(event_lines),
+            )
     else:
-        await interaction.followup.send(error_message or "Failed to delete media entry.", ephemeral=True)
+        failure_message = error_message or "Failed to delete media entry."
+        await interaction.followup.send(failure_message, ephemeral=True)
+        if admin_log_cog and interaction.guild:
+            event_lines = [
+                f"File ID: {file_id}",
+                f"Requested by: {interaction.user.mention}",
+                f"Reason: {failure_message}",
+            ]
+            if metadata and metadata.get("file_url"):
+                event_lines.append(f"File URL: {metadata['file_url']}")
+            await admin_log_cog.log_event(
+                interaction.guild.id,
+                priority="error",
+                event_name="Media deletion failed",
+                event_status="\n".join(event_lines),
+            )
 
 
 async def setup(bot: commands.Bot) -> None:
