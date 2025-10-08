@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import asyncpg
+import boto3
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -18,11 +19,11 @@ from logger import LoggerManager
 
 UPVOTE_EMOJI_NAME = os.getenv("IMAGE_UPVOTE_EMOJI_NAME", "arrow_upvote")
 UPVOTE_THRESHOLD = int(os.getenv("IMAGE_UPVOTE_THRESHOLD", "4"))
-UPLOAD_DIR = Path("cdn/Uploads")
-THUMBNAIL_DIR = UPLOAD_DIR / "thumbnails"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-THUMBNAIL_DIR.mkdir(parents=True, exist_ok=True)
-CDN_BASE_URL = "https://cdn.killua.de"
+S3_ENDPOINT = os.getenv("IMAGE_UPVOTE_S3_ENDPOINT")
+S3_BUCKET = os.getenv("IMAGE_UPVOTE_S3_BUCKET")
+S3_ACCESS_KEY = os.getenv("IMAGE_UPVOTE_S3_ACCESS_KEY")
+S3_SECRET_KEY = os.getenv("IMAGE_UPVOTE_S3_SECRET_KEY")
+S3_REGION = os.getenv("IMAGE_UPVOTE_S3_REGION")
 DATABASE_TABLE = "media_uploads"
 
 
@@ -34,9 +35,13 @@ class ImageUpvote(commands.Cog):
         self.bot = bot
         self._uploaded_messages: set[int] = set()
         self._db_pool: Optional[asyncpg.Pool] = None
+        self._s3_client = None
+        self._s3_bucket: Optional[str] = None
+        self._s3_url_prefix: Optional[str] = None
 
     async def cog_load(self) -> None:
         await self._initialise_database()
+        self._initialise_s3()
 
     async def cog_unload(self) -> None:
         if self._db_pool is not None:
@@ -47,7 +52,7 @@ class ImageUpvote(commands.Cog):
         db_host = os.getenv("POSTGRES_HOST", "postgres")
         db_port = int(os.getenv("POSTGRES_PORT", "5432"))
         db_name = os.getenv("POSTGRES_DB", "thebase")
-        db_user = os.getenv("POSTGRES_USER", "postgres")
+        db_user = os.getenv("POSTGRES_USER", "based")
         db_password = os.getenv("POSTGRES_PASSWORD", "")
 
         try:
@@ -80,6 +85,30 @@ class ImageUpvote(commands.Cog):
         except Exception:
             logger.exception("Failed to initialise Postgres connection")
             self._db_pool = None
+
+    def _initialise_s3(self) -> None:
+        if not all([S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY]):
+            logger.error("S3 configuration is incomplete; uploads will be skipped.")
+            return
+        try:
+            session = boto3.session.Session()
+            self._s3_client = session.client(
+                "s3",
+                endpoint_url=S3_ENDPOINT,
+                aws_access_key_id=S3_ACCESS_KEY,
+                aws_secret_access_key=S3_SECRET_KEY,
+                region_name=S3_REGION,
+            )
+            self._s3_bucket = S3_BUCKET
+            endpoint = S3_ENDPOINT.rstrip("/")
+            bucket = S3_BUCKET.strip("/")
+            self._s3_url_prefix = f"{endpoint}/{bucket}"
+            logger.info("S3 client initialised for image upvotes.")
+        except Exception:
+            logger.exception("Failed to initialise S3 client")
+            self._s3_client = None
+            self._s3_bucket = None
+            self._s3_url_prefix = None
 
     @staticmethod
     def _is_supported_attachment(attachment: discord.Attachment) -> bool:
@@ -135,32 +164,76 @@ class ImageUpvote(commands.Cog):
     def _build_file_stem(message: discord.Message, index: int) -> str:
         return f"{message.author.id}-{message.id}_{index:02d}"
 
+    async def _upload_to_s3(self, local_path: Path, object_key: str, content_type: str) -> str:
+        if not self._s3_client or not self._s3_bucket or not self._s3_url_prefix:
+            raise RuntimeError("S3 client not configured")
+
+        def _upload() -> None:
+            extra_args = {"ContentType": content_type} if content_type else None
+            if extra_args:
+                self._s3_client.upload_file(
+                    str(local_path),
+                    self._s3_bucket,
+                    object_key,
+                    ExtraArgs=extra_args,
+                )
+            else:
+                self._s3_client.upload_file(
+                    str(local_path),
+                    self._s3_bucket,
+                    object_key,
+                )
+
+        await asyncio.to_thread(_upload)
+        return f"{self._s3_url_prefix}/{object_key}"
+
+    @staticmethod
+    def _content_type_for_extension(extension: str) -> str:
+        mapping = {
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".mp4": "video/mp4",
+            ".mp3": "audio/mpeg",
+        }
+        return mapping.get(extension.lower(), "application/octet-stream")
+
     async def _save_image(self, data: bytes, file_stem: str) -> tuple[Path, Optional[Path], str]:
         try:
             with Image.open(io.BytesIO(data)) as img:
                 img_format = img.format or ""
-                img_extension = f".{img_format.lower()}" if img_format else Path(img.filename or "").suffix
                 if img_format == "GIF":
-                    file_path = UPLOAD_DIR / f"{file_stem}.gif"
+                    fd, gif_path = tempfile.mkstemp(suffix=".gif")
+                    os.close(fd)
+                    file_path = Path(gif_path)
                     file_path.write_bytes(data)
                     img.seek(0)
                     frame = img.convert("RGBA")
                     frame.thumbnail((512, 512))
-                    thumbnail_path = THUMBNAIL_DIR / f"{file_stem}.webp"
+                    fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
+                    os.close(fd_thumb)
+                    thumbnail_path = Path(thumb_path)
                     frame.save(thumbnail_path, "WEBP")
                     return file_path, thumbnail_path, ".gif"
                 if img_format == "WEBP":
-                    file_path = UPLOAD_DIR / f"{file_stem}.webp"
+                    fd, webp_path = tempfile.mkstemp(suffix=".webp")
+                    os.close(fd)
+                    file_path = Path(webp_path)
                     file_path.write_bytes(data)
-                    thumbnail_path = THUMBNAIL_DIR / f"{file_stem}.webp"
+                    fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
+                    os.close(fd_thumb)
+                    thumbnail_path = Path(thumb_path)
                     preview = img.copy()
                     preview.thumbnail((512, 512))
                     preview.save(thumbnail_path, "WEBP")
                     return file_path, thumbnail_path, ".webp"
-                file_path = UPLOAD_DIR / f"{file_stem}.webp"
+                fd, webp_path = tempfile.mkstemp(suffix=".webp")
+                os.close(fd)
+                file_path = Path(webp_path)
                 converted = img.convert("RGBA") if img.mode not in {"RGB", "RGBA"} else img
                 converted.save(file_path, "WEBP")
-                thumbnail_path = THUMBNAIL_DIR / f"{file_stem}.webp"
+                fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
+                os.close(fd_thumb)
+                thumbnail_path = Path(thumb_path)
                 thumb_image = converted.copy()
                 thumb_image.thumbnail((512, 512))
                 thumb_image.save(thumbnail_path, "WEBP")
@@ -169,7 +242,9 @@ class ImageUpvote(commands.Cog):
             raise RuntimeError(f"Failed to process image: {exc}") from exc
 
     async def _save_video(self, data: bytes, file_stem: str, source_extension: str) -> tuple[Path, Optional[Path], str]:
-        file_path = UPLOAD_DIR / f"{file_stem}.mp4"
+        fd_dest, dest_path = tempfile.mkstemp(suffix=".mp4")
+        os.close(fd_dest)
+        file_path = Path(dest_path)
         temp_path = None
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=source_extension or ".tmp") as temp_file:
@@ -195,7 +270,9 @@ class ImageUpvote(commands.Cog):
             _, stderr = await process.communicate()
             if process.returncode != 0:
                 raise RuntimeError(stderr.decode())
-            thumbnail_path = THUMBNAIL_DIR / f"{file_stem}.webp"
+            fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
+            os.close(fd_thumb)
+            thumbnail_path = Path(thumb_path)
             thumb_process = await asyncio.create_subprocess_exec(
                 "ffmpeg",
                 "-y",
@@ -220,7 +297,9 @@ class ImageUpvote(commands.Cog):
                 temp_path.unlink(missing_ok=True)
 
     async def _save_audio(self, data: bytes, file_stem: str, source_extension: str) -> tuple[Path, Optional[Path], str]:
-        file_path = UPLOAD_DIR / f"{file_stem}.mp3"
+        fd_dest, dest_path = tempfile.mkstemp(suffix=".mp3")
+        os.close(fd_dest)
+        file_path = Path(dest_path)
         temp_path = None
         try:
             with tempfile.NamedTemporaryFile(delete=False, suffix=source_extension or ".tmp") as temp_file:
@@ -263,6 +342,11 @@ class ImageUpvote(commands.Cog):
             for att in message.attachments
             if self._is_supported_attachment(att)
         ]
+        if not media_attachments:
+            return False
+        if not self._s3_client or not self._s3_bucket:
+            logger.error("S3 client is not configured; unable to handle uploads.")
+            return False
         admin_log_cog = (
             interaction.client.get_cog("AdminLog")
             if interaction
@@ -276,6 +360,8 @@ class ImageUpvote(commands.Cog):
             data = await attachment.read()
             extension = Path(attachment.filename).suffix.lower()
             file_stem = self._build_file_stem(message, idx)
+            file_path: Optional[Path] = None
+            thumbnail_path: Optional[Path] = None
             try:
                 content_type = (attachment.content_type or "").lower()
                 if content_type.startswith("image") or extension in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
@@ -287,15 +373,24 @@ class ImageUpvote(commands.Cog):
                 else:
                     raise ValueError("Unsupported content type")
                 size_mb = file_path.stat().st_size / (1024 * 1024)
-                url = f"{CDN_BASE_URL}/{file_path.parent.name}/{file_path.name}"
-                thumb_url = (
-                    f"{CDN_BASE_URL}/{thumbnail_path.parent.name}/{thumbnail_path.name}"
-                    if thumbnail_path
-                    else None
+                s3_filename = f"{file_stem}{file_format}"
+                file_key = s3_filename
+                file_url = await self._upload_to_s3(
+                    local_path=file_path,
+                    object_key=file_key,
+                    content_type=self._content_type_for_extension(file_format),
                 )
+                thumb_url = None
+                if thumbnail_path:
+                    thumb_key = f"thumbnails/{file_stem}.webp"
+                    thumb_url = await self._upload_to_s3(
+                        local_path=thumbnail_path,
+                        object_key=thumb_key,
+                        content_type="image/webp",
+                    )
                 await self._record_upload(
-                    filename=file_path.name,
-                    file_url=url,
+                    filename=s3_filename,
+                    file_url=file_url,
                     thumbnail_url=thumb_url,
                     file_format=file_format,
                     creator_name=message.author.display_name,
@@ -312,8 +407,8 @@ class ImageUpvote(commands.Cog):
                         else "Media uploaded via upvotes"
                     )
                     event_lines = [
-                        f"{file_path.name} - {size_mb:.2f} MB",
-                        url,
+                        f"{s3_filename} - {size_mb:.2f} MB",
+                        file_url,
                     ]
                     if thumb_url:
                         event_lines.append(f"Thumbnail: {thumb_url}")
@@ -346,6 +441,11 @@ class ImageUpvote(commands.Cog):
                         ),
                     )
                 continue
+            finally:
+                if file_path:
+                    file_path.unlink(missing_ok=True)
+                if thumbnail_path:
+                    thumbnail_path.unlink(missing_ok=True)
         if any_success:
             self._uploaded_messages.add(message.id)
             try:
@@ -399,12 +499,12 @@ class ImageUpvote(commands.Cog):
             await self.handle_upload(message, source="upvote")
 
 
-@shadow_bot.tree.context_menu(name="Force Upload")
+@shadow_bot.tree.context_menu(name="Upload to S3")
 @app_commands.allowed_installs(guilds=True, users=False)
 @app_commands.guild_only()
 async def force_upload(interaction: discord.Interaction, message: discord.Message) -> None:
     logger.info(
-        f"Force upload triggered by {interaction.user} in {message.channel} ({message.jump_url})"
+        f"Upload to S3 triggered by {interaction.user} in {message.channel} ({message.jump_url})"
     )
     if not interaction.user.guild_permissions.manage_messages:
         await interaction.response.send_message("You do not have permission to use this.", ephemeral=True)
@@ -425,7 +525,7 @@ async def force_upload(interaction: discord.Interaction, message: discord.Messag
     await interaction.response.defer(ephemeral=True)
     success = await cog.handle_upload(message, source="force", interaction=interaction)
     if success:
-        await interaction.followup.send("Image saved to CDN.", ephemeral=True)
+        await interaction.followup.send("Media uploaded to S3.", ephemeral=True)
     else:
         await interaction.followup.send("Failed to save any attachments.", ephemeral=True)
 
