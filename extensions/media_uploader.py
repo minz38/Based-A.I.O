@@ -13,7 +13,7 @@ import boto3
 import discord
 from discord import app_commands
 from discord.ext import commands
-from PIL import Image
+from PIL import Image, ImageSequence
 
 from bot import bot as shadow_bot
 from logger import LoggerManager
@@ -227,76 +227,87 @@ class ImageUpvote(commands.Cog):
     async def _save_image(self, data: bytes, file_stem: str) -> tuple[Path, Optional[Path], str]:
         try:
             with Image.open(io.BytesIO(data)) as img:
-                img_format = img.format or ""
-                if img_format == "GIF":
-                    fd, gif_path = tempfile.mkstemp(suffix=".gif")
-                    os.close(fd)
-                    file_path = Path(gif_path)
-                    file_path.write_bytes(data)
-                    img.seek(0)
-                    frame = img.convert("RGBA")
-                    frame.thumbnail((512, 512))
-                    fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
-                    os.close(fd_thumb)
-                    thumbnail_path = Path(thumb_path)
-                    frame.save(thumbnail_path, "WEBP")
-                    return file_path, thumbnail_path, ".gif"
-                if img_format == "WEBP":
-                    fd, webp_path = tempfile.mkstemp(suffix=".webp")
-                    os.close(fd)
-                    file_path = Path(webp_path)
-                    file_path.write_bytes(data)
-                    fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
-                    os.close(fd_thumb)
-                    thumbnail_path = Path(thumb_path)
-                    preview = img.copy()
-                    preview.thumbnail((512, 512))
-                    preview.save(thumbnail_path, "WEBP")
-                    return file_path, thumbnail_path, ".webp"
                 fd, webp_path = tempfile.mkstemp(suffix=".webp")
                 os.close(fd)
                 file_path = Path(webp_path)
-                converted = img.convert("RGBA") if img.mode not in {"RGB", "RGBA"} else img
-                converted.save(file_path, "WEBP")
+
+                if getattr(img, "is_animated", False):
+                    frames = []
+                    durations: list[int] = []
+                    for frame in ImageSequence.Iterator(img):
+                        frames.append(frame.convert("RGBA"))
+                        durations.append(int(frame.info.get("duration", img.info.get("duration", 0)) or 0))
+                    base_frame = frames[0]
+                    save_kwargs: dict[str, Any] = {
+                        "format": "WEBP",
+                        "save_all": True,
+                        "append_images": frames[1:],
+                        "loop": img.info.get("loop", 0),
+                        "duration": durations,
+                        "lossless": True,
+                    }
+                    base_frame.save(file_path, **save_kwargs)
+                else:
+                    converted = img.convert("RGBA") if img.mode not in {"RGB", "RGBA"} else img.copy()
+                    converted.save(file_path, "WEBP", lossless=True)
+                    base_frame = converted
+
                 fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
                 os.close(fd_thumb)
                 thumbnail_path = Path(thumb_path)
-                thumb_image = converted.copy()
+                thumb_image = base_frame.copy()
                 thumb_image.thumbnail((512, 512))
-                thumb_image.save(thumbnail_path, "WEBP")
+                thumb_image.save(thumbnail_path, "WEBP", lossless=True)
                 return file_path, thumbnail_path, ".webp"
         except Exception as exc:
             raise RuntimeError(f"Failed to process image: {exc}") from exc
 
-    async def _save_video(self, data: bytes, file_stem: str, source_extension: str) -> tuple[Path, Optional[Path], str]:
-        fd_dest, dest_path = tempfile.mkstemp(suffix=".mp4")
-        os.close(fd_dest)
-        file_path = Path(dest_path)
-        temp_path = None
+    async def _save_video(
+            self,
+            data: bytes,
+            file_stem: str,
+            source_extension: str,
+            content_type: str,
+    ) -> tuple[Path, Optional[Path], str]:
+        extension = (source_extension or "").lower()
+        ctype = (content_type or "").lower()
+        is_mp4 = extension == ".mp4" or ctype == "video/mp4"
+        file_path: Optional[Path] = None
+        input_temp: Optional[Path] = None
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=source_extension or ".tmp") as temp_file:
-                temp_file.write(data)
-                temp_path = Path(temp_file.name)
-            process = await asyncio.create_subprocess_exec(
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(temp_path),
-                "-c:v",
-                "libx264",
-                "-preset",
-                "fast",
-                "-crf",
-                "22",
-                "-c:a",
-                "aac",
-                str(file_path),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            _, stderr = await process.communicate()
-            if process.returncode != 0:
-                raise RuntimeError(stderr.decode())
+            if is_mp4:
+                fd_dest, dest_path = tempfile.mkstemp(suffix=".mp4")
+                os.close(fd_dest)
+                file_path = Path(dest_path)
+                file_path.write_bytes(data)
+            else:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=extension or ".tmp") as temp_file:
+                    temp_file.write(data)
+                    input_temp = Path(temp_file.name)
+                fd_dest, dest_path = tempfile.mkstemp(suffix=".mp4")
+                os.close(fd_dest)
+                file_path = Path(dest_path)
+                process = await asyncio.create_subprocess_exec(
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    str(input_temp),
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "fast",
+                    "-crf",
+                    "22",
+                    "-c:a",
+                    "aac",
+                    str(file_path),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                _, stderr = await process.communicate()
+                if process.returncode != 0:
+                    raise RuntimeError(stderr.decode())
+
             fd_thumb, thumb_path = tempfile.mkstemp(suffix=".webp")
             os.close(fd_thumb)
             thumbnail_path = Path(thumb_path)
@@ -320,8 +331,8 @@ class ImageUpvote(commands.Cog):
         except Exception as exc:
             raise RuntimeError(f"Failed to process video: {exc}") from exc
         finally:
-            if temp_path:
-                temp_path.unlink(missing_ok=True)
+            if input_temp:
+                input_temp.unlink(missing_ok=True)
 
     async def _save_audio(self, data: bytes, file_stem: str, source_extension: str) -> tuple[Path, Optional[Path], str]:
         fd_dest, dest_path = tempfile.mkstemp(suffix=".mp3")
@@ -465,7 +476,12 @@ class ImageUpvote(commands.Cog):
                 if content_type.startswith("image") or extension in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
                     file_path, thumbnail_path, file_format = await self._save_image(data, file_stem)
                 elif content_type.startswith("video") or extension in {".mp4", ".mov", ".mkv", ".webm", ".avi"}:
-                    file_path, thumbnail_path, file_format = await self._save_video(data, file_stem, extension)
+                    file_path, thumbnail_path, file_format = await self._save_video(
+                        data,
+                        file_stem,
+                        extension,
+                        content_type,
+                    )
                 elif content_type.startswith("audio") or extension in {".mp3", ".wav", ".ogg", ".flac", ".m4a"}:
                     file_path, thumbnail_path, file_format = await self._save_audio(data, file_stem, extension)
                 else:
