@@ -194,14 +194,20 @@ class GoogleSheetHandler:
         try:
             temp_audio_path = f'temp_files/{question_nr}'
             ydl_opts = {
-                'format': 'bestaudio/best',
-                'outtmpl': temp_audio_path,  # Output file name with .mp3 extension
-                'noplaylist': True,
-                'quiet': True,
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',  # Force the output format to be MP3
-                    'preferredquality': '192',  # Audio quality (bitrate)
+                "format": "bestaudio/best",
+                "outtmpl": temp_audio_path,  # Output file name with .mp3 extension
+                "noplaylist": True,
+                "quiet": True,
+                # Request Android/alternate clients to avoid SABR streams that fail on web clients.
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "mweb", "ios"],
+                    },
+                },
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",  # Force the output format to be MP3
+                    "preferredquality": "192",  # Audio quality (bitrate)
                 }],
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
