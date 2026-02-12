@@ -198,10 +198,10 @@ class GoogleSheetHandler:
                 "outtmpl": temp_audio_path,  # Output file name with .mp3 extension
                 "noplaylist": True,
                 "quiet": True,
-                # Request Android/alternate clients to avoid SABR streams that fail on web clients.
+                # Use default web client with EJS runtime for signature solving.
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["android", "mweb", "ios"],
+                        "player_client": ["default"],
                     },
                 },
                 "postprocessors": [{
