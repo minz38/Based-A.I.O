@@ -1,6 +1,6 @@
 # AGENTS Instructions
 
-## Guidelines
+## Guidelines 
 - Use 4 spaces for indentation.
 - Prefer double quotes for strings.
 - Place new Discord features as cogs inside `extensions/` and register them in `configs/bot_config.json` to activate.
